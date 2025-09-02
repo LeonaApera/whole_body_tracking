@@ -1,0 +1,1 @@
+python scripts/csv_to_npz.py --input_file /home/thomas/whole_body_tracking/datasets/reference_motions/LAFAN1_Retargeting_Dataset/lafan1_g1_all.csv  --output_name LANFAN1_g1  --headless
