@@ -133,7 +133,7 @@ class ObservationsCfg:
         """Observations for policy group with VQ-VAE latent space."""
 
         # observation terms (order preserved)
-        command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
+        # command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
         motion_anchor_pos_b = ObsTerm(
             func=mdp.motion_anchor_pos_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.25, n_max=0.25)
         )
@@ -174,7 +174,7 @@ class ObservationsCfg:
     
     @configclass
     class PrivilegedCfgVQVAE(ObsGroup):
-        command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
+        # command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
         motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
         motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})
         body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
@@ -193,10 +193,10 @@ class ObservationsCfg:
             }
         )
     # observation groups
-    policy: PolicyCfg = PolicyCfg()
-    # policy: PolicyCfgVQVAE = PolicyCfgVQVAE()
-    critic: PrivilegedCfg = PrivilegedCfg()
-    # critic: PrivilegedCfgVQVAE = PrivilegedCfgVQVAE()
+    # policy: PolicyCfg = PolicyCfg()
+    policy: PolicyCfgVQVAE = PolicyCfgVQVAE()
+    # critic: PrivilegedCfg = PrivilegedCfg()
+    critic: PrivilegedCfgVQVAE = PrivilegedCfgVQVAE()
 
 @configclass
 class EventCfg:
