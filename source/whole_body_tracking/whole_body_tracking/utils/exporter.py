@@ -31,15 +31,31 @@ def export_motion_policy_as_onnx(
 class _OnnxMotionPolicyExporter(_OnnxPolicyExporter):
     def __init__(self, env: ManagerBasedRLEnv, actor_critic, normalizer=None, verbose=False):
         super().__init__(actor_critic, normalizer, verbose)
-        cmd: MotionCommand = env.command_manager.get_term("motion")
-
-        self.joint_pos = cmd.motion.joint_pos.to("cpu")
-        self.joint_vel = cmd.motion.joint_vel.to("cpu")
-        self.body_pos_w = cmd.motion.body_pos_w.to("cpu")
-        self.body_quat_w = cmd.motion.body_quat_w.to("cpu")
-        self.body_lin_vel_w = cmd.motion.body_lin_vel_w.to("cpu")
-        self.body_ang_vel_w = cmd.motion.body_ang_vel_w.to("cpu")
-        self.time_step_total = self.joint_pos.shape[0]
+        cmd = env.command_manager.get_term("motion")
+        if hasattr(cmd, 'motion'):
+            # single trajectory  MotionCommand
+            self.joint_pos = cmd.motion.joint_pos.to("cpu")
+            self.joint_vel = cmd.motion.joint_vel.to("cpu")
+            self.body_pos_w = cmd.motion.body_pos_w.to("cpu")
+            self.body_quat_w = cmd.motion.body_quat_w.to("cpu")
+            self.body_lin_vel_w = cmd.motion.body_lin_vel_w.to("cpu")
+            self.body_ang_vel_w = cmd.motion.body_ang_vel_w.to("cpu")
+            self.time_step_total = self.joint_pos.shape[0]
+        elif hasattr(cmd, 'motion_loader'):
+            # multi trajectory  MultiTrajectoryMotionCommand
+            # use the first motion as a reference (for compatibility)
+            # TODO: choose the right trajectory
+            first_motion = cmd.motion_loader.motions[0]
+            self.joint_pos = first_motion['joint_pos'].to("cpu")
+            self.joint_vel = first_motion['joint_vel'].to("cpu")
+            self.body_pos_w = first_motion['body_pos_w'][:, cmd.body_indexes].to("cpu")
+            self.body_quat_w = first_motion['body_quat_w'][:, cmd.body_indexes].to("cpu")
+            self.body_lin_vel_w = first_motion['body_lin_vel_w'][:, cmd.body_indexes].to("cpu")
+            self.body_ang_vel_w = first_motion['body_ang_vel_w'][:, cmd.body_indexes].to("cpu")
+            self.time_step_total = self.joint_pos.shape[0]
+            print(f"[INFO] Using first motion for ONNX export: {cmd.motion_loader.motion_names[0]} ({self.time_step_total} timesteps)")
+        else:
+            raise ValueError(f"Unknown motion command type: {type(cmd)}")
 
     def forward(self, x, time_step):
         time_step_clamped = torch.clamp(time_step.long().squeeze(-1), max=self.time_step_total - 1)
