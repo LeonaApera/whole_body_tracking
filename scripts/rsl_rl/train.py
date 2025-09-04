@@ -11,7 +11,7 @@ import argparse
 import sys
 
 from isaaclab.app import AppLauncher
-
+import pdb
 # local imports
 import cli_args  # isort: skip
 
@@ -24,7 +24,7 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
-parser.add_argument("--registry_name", type=str, required=True, help="The name of the wand registry.")
+parser.add_argument("--registry_name", type=str, default=None, help="The name of the wandb registry (optional for multi-trajectory tasks).")
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -82,7 +82,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     agent_cfg.max_iterations = (
         args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg.max_iterations
     )
-
+    
     # set the environment seed
     # note: certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg.seed
@@ -90,16 +90,33 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # load the motion file from the wandb registry
     registry_name = args_cli.registry_name
-    if ":" not in registry_name:  # Check if the registry name includes alias, if not, append ":latest"
-        registry_name += ":latest"
-    import pathlib
+    
+    # 检查是否为多轨迹任务
+    is_multi_trajectory_task = "MultiTrajectory" in args_cli.task
+   
+    if registry_name:
+        # 传统单轨迹模式：从 registry 下载单个 motion 文件
+        if ":" not in registry_name:  # Check if the registry name includes alias, if not, append ":latest"
+            registry_name += ":latest"
+        import pathlib
 
-    import wandb
+        import wandb
 
-    api = wandb.Api()
-    artifact = api.artifact(registry_name)
-    env_cfg.commands.motion.motion_file = str(pathlib.Path(artifact.download()) / "motion.npz")
-
+        api = wandb.Api()
+        artifact = api.artifact(registry_name)
+        env_cfg.commands.motion.motion_file = str(pathlib.Path(artifact.download()) / "motion.npz")
+        print(f"[INFO] Downloaded motion from registry: {registry_name}")
+        pdb.set_trace()
+    elif is_multi_trajectory_task:
+        # 多轨迹模式：使用环境配置中预设的 WandB Registry 模式
+        print(f"[INFO] Using multi-trajectory mode with registry pattern from environment config")
+        print(f"[INFO] Motion source: {env_cfg.commands.motion.motion_file}")
+        # motion_file 已经在环境配置中设置为类似 "org/collection/*" 的模式
+        pdb.set_trace()
+    else:
+        # 既没有 registry_name 也不是多轨迹任务，报错
+        raise ValueError("Either --registry_name must be provided or task must be a multi-trajectory task")
+    
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
     log_root_path = os.path.abspath(log_root_path)
@@ -133,7 +150,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # create runner from rsl-rl
     runner = OnPolicyRunner(
-        env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device, registry_name=registry_name
+        env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device, registry_name=registry_name or "multi_trajectory"
     )
     # write git state to logs
     runner.add_git_repo_to_log(__file__)

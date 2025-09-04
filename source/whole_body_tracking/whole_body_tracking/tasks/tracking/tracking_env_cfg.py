@@ -193,10 +193,10 @@ class ObservationsCfg:
             }
         )
     # observation groups
-    # policy: PolicyCfg = PolicyCfg()
-    policy: PolicyCfgVQVAE = PolicyCfgVQVAE()
-    # critic: PrivilegedCfg = PrivilegedCfg()
-    critic: PrivilegedCfgVQVAE = PrivilegedCfgVQVAE()
+    policy: PolicyCfg = PolicyCfg()
+    # policy: PolicyCfgVQVAE = PolicyCfgVQVAE()
+    critic: PrivilegedCfg = PrivilegedCfg()
+    # critic: PrivilegedCfgVQVAE = PrivilegedCfgVQVAE()
 
 @configclass
 class EventCfg:

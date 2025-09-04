@@ -23,6 +23,8 @@ from isaaclab.utils.math import (
     yaw_quat,
 )
 
+from whole_body_tracking.utils.multi_motion_loader import MultiMotionLoader
+
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
@@ -71,8 +73,15 @@ class MotionCommand(CommandTerm):
             self.robot.find_bodies(self.cfg.body_names, preserve_order=True)[0], dtype=torch.long, device=self.device
         )
 
-        self.motion = MotionLoader(self.cfg.motion_file, self.body_indexes, device=self.device)
+        self.motion = MultiMotionLoader(self.cfg.motion_file, self.body_indexes.tolist(), device=self.device)
+        
+        # 为每个环境存储当前的 motion 索引和时间步
+        self.current_motion_indices = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self.time_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
+        self.max_timesteps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
+        
+        # 初始化随机采样
+        self._sample_new_trajectories(torch.arange(self.num_envs, device=self.device))
         self.body_pos_relative_w = torch.zeros(self.num_envs, len(cfg.body_names), 3, device=self.device)
         self.body_quat_relative_w = torch.zeros(self.num_envs, len(cfg.body_names), 4, device=self.device)
         self.body_quat_relative_w[:, :, 0] = 1.0

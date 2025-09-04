@@ -1,1 +1,5 @@
-python scripts/csv_to_npz.py --input_file /home/thomas/whole_body_tracking/datasets/reference_motions/LAFAN1_Retargeting_Dataset/lafan1_g1_all.csv  --output_name LANFAN1_g1  --headless
+python scripts/csv_to_npz.py --input_file /home/thomas/whole_body_tracking/datasets/reference_motions/LAFAN1_Retargeting_Dataset/lafan1_g1_all.csv  --output_name LANFAN1_g1  --
+# test
+python scripts/rsl_rl/play.py --task=Tracking-Flat-G1-MultiTrajectory-v0  --num_envs=1 --wandb_path=jianuocao0105-nanjing-university/lafan1_multi_4096_50000/yczfc5o8
+
+CUDA_VISIBLE_DEVICES=0 python scripts/rsl_rl/train.py --task Tracking-Flat-G1-MultiTrajectory-v0 --num_envs 1 --max_iterations 50000 --headless --logger wandb --log_project_name try --run_name b --headless

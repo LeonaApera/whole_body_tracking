@@ -8,7 +8,7 @@
 """
 
 """Launch Isaac Sim Simulator first."""
-
+import wandb
 import argparse
 import numpy as np
 
@@ -309,6 +309,28 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene, joi
             logged_artifact = run.log_artifact(artifact_or_path="/tmp/motion.npz", name=COLLECTION, type=REGISTRY)
             run.link_artifact(artifact=logged_artifact, target_path=f"wandb-registry-{REGISTRY}/{COLLECTION}")
             print(f"[INFO]: Motion saved to wandb registry: {REGISTRY}/{COLLECTION}")
+            
+            # 确保关闭 wandb run
+            run.finish()
+            wandb.finish()
+            
+            # 处理完成后立即退出循环
+            print(f"[INFO]: Motion processing completed, exiting...")
+            
+            # 先尝试正常关闭
+            try:
+                print(f"[INFO]: Attempting to close simulation app...")
+                simulation_app.close()
+                print(f"[INFO]: Simulation app closed successfully.")
+            except Exception as e:
+                print(f"[WARNING]: Failed to close simulation app normally: {e}")
+                print(f"[INFO]: Force exiting...")
+            
+            # 强制退出程序
+            import sys
+            import os
+            print(f"[INFO]: Force exiting process...")
+            os._exit(0)
 
 
 def main():
@@ -365,5 +387,9 @@ def main():
 if __name__ == "__main__":
     # run the main function
     main()
-    # close sim app
-    simulation_app.close()
+    # # close sim app
+    # print("[INFO]: Closing simulation app...")
+    # simulation_app.close()
+    # print("[INFO]: Simulation app closed.")
+    # wandb.finish()
+
