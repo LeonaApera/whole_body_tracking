@@ -2,7 +2,7 @@ python scripts/csv_to_npz.py --input_file /home/thomas/whole_body_tracking/datas
 # test
 python scripts/rsl_rl/play.py --task=Tracking-Flat-G1-MultiTrajectory-v0  --num_envs=1 --wandb_path=jianuocao0105-nanjing-university/lafan1_multi_4096_50000/yczfc5o8 --verbose
 python scripts/replay_npz.py --registry_name=jianuocao0105-nanjing-university-org/wandb-registry-motions/dance1_subject1
-python scripts/rsl_rl/train.py --task Tracking-Flat-G1-v0 --num_envs 1 --max_iterations 50000 --headless --logger wandb --log_project_name try --run_name b --registry_name=jianuocao0105-nanjing-university-org/wandb-registry-motions/dance1_subject1
+python scripts/rsl_rl/train.py --task Tracking-Flat-G1-v0 --num_envs 4096 --max_iterations 50000 --headless --logger wandb --log_project_name try --run_name 60_future_frames --registry_name=jianuocao0105-nanjing-university-org/wandb-registry-motions/dance1_subject2
 CUDA_VISIBLE_DEVICES=0 python scripts/rsl_rl/train.py --task Tracking-Flat-G1-MultiTrajectory-v0 --num_envs 1 --max_iterations 50000 --headless --logger wandb --log_project_name try --run_name b 
 python scripts/rsl_rl/play.py --task=Tracking-Flat-G1-MultiTrajectory-v0  --num_envs=1 --wandb_path=jianuocao0105-nanjing-university/lafan1_multi_4096_50000/yczfc5o8 --motion_file=/home/yuxin/Projects/whole_body_tracking/artifacts/dance1_subject1:v0/motion.npz
 python scripts/rsl_rl/play.py --task=Tracking-Flat-G1-MultiTrajectory-v0  --num_envs=1 --wandb_path=jianuocao0105-nanjing-university/lanfan_train4/4j34zugy --motion_file=/home/yuxin/Projects/whole_body_tracking/artifacts/dance1_subject1:v0/motion.npz
@@ -25,16 +25,16 @@ python scripts/rsl_rl/play.py --task=Tracking-Flat-G1-MultiTrajectory-v0 \
     --test_full_trajectory \
 python scripts/rsl_rl/play.py \
     --task=Tracking-Flat-G1-MultiTrajectory-v0 \
-    --wandb_path=jianuocao0105-nanjing-university/lanfan_train4/4j34zugy  \
+    --wandb_path=jianuocao0105-nanjing-university/lafan1_train2/xlzbs4gf
     --motion_file=artifacts/dance1_subject1:v0/motion.npz \
     --quantitative_analysis \
     --test_envs=4096 \
     --metrics_output_dir=./metrics
 ${ISAACLAB_PATH}/isaaclab.sh -p scripts/rsl_rl/eval.py \
     --task=Tracking-Flat-G1-MultiTrajectory-v0 \
-    --wandb_path=jianuocao0105-nanjing-university/lafan1_train2/xlzbs4gf \
-    --num_envs=4 \
-    --num_episodes=10 \
+    --wandb_path=jianuocao0105-nanjing-university/lafan1_train2/xlzbs4gf
+    --num_envs=4096 \
+    --num_episodes=5 \
     --max_steps=600
 ${ISAACLAB_PATH}/isaaclab.sh -p scripts/rsl_rl/eval.py     --task=Tracking-Flat-G1-MultiTrajectory-v0     --wandb_path=jianuocao0105-nanjing-university/lafan1_multi_4096_50000/yczfc5o8     --num_envs=1     --num_episodes=10     --max_steps=20
 jianuocao0105-nanjing-university/lafan1_train3/k8vmypwj
@@ -44,3 +44,10 @@ ${ISAACLAB_PATH}/isaaclab.sh -p scripts/rsl_rl/eval.py \
     --num_envs=4 \
     --num_episodes=10 \
     --max_steps=600
+${ISAACLAB_PATH}/isaaclab.sh -p scripts/rsl_rl/eval.py \
+    --task=Tracking-Flat-G1-v0 \
+    --wandb_path=jianuocao0105-nanjing-university/try/h6ckrzo2 \
+    --num_envs=4096 \
+    --num_episodes=5 \
+    --max_steps=600 \
+    --headless
