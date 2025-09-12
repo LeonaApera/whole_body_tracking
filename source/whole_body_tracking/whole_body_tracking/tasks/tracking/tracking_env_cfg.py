@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-
+import pdb
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -127,11 +127,34 @@ class ObservationsCfg:
         joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5))
         actions = ObsTerm(func=mdp.last_action)
+    @configclass
+    class PolicyCfg_TimeWindows(ObsGroup):
+        """Observations for policy group."""
 
+        # observation terms (order preserved)
+        command_future = ObsTerm(func=mdp.command_future_frames, params={"command_name": "motion", "n_future_frames": 60})
+        motion_anchor_pos_b = ObsTerm(
+            func=mdp.motion_anchor_pos_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.25, n_max=0.25)
+        )
+        motion_anchor_ori_b = ObsTerm(
+            func=mdp.motion_anchor_ori_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.05, n_max=0.05)
+        )
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        actions = ObsTerm(func=mdp.last_action)
     @configclass
     class PolicyCfgVQVAE(ObsGroup):
         """Observations for policy group with VQ-VAE latent space."""
-
+        latent_space = ObsTerm(
+            func=mdp.latent_space, 
+            params={
+                "command_name": "motion",
+                "vqvae_model_path": "/home/yuxin/Projects/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/final_model.pt",
+                "n_future_frames": 60
+            }
+        )
         # observation terms (order preserved)
         # command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
         motion_anchor_pos_b = ObsTerm(
@@ -146,14 +169,7 @@ class ObservationsCfg:
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5))
         actions = ObsTerm(func=mdp.last_action)
         # VQ-VAE latent space representation
-        latent_space = ObsTerm(
-            func=mdp.latent_space, 
-            params={
-                "command_name": "motion",
-                "vqvae_model_path": "/home/thomas/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/final_model.pt",
-                "window_size": 60
-            }
-        )
+
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -162,6 +178,7 @@ class ObservationsCfg:
     @configclass
     class PrivilegedCfg(ObsGroup):
         command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
+        # pdb.set_trace()
         motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
         motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})
         body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
@@ -171,32 +188,49 @@ class ObservationsCfg:
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
         actions = ObsTerm(func=mdp.last_action)
-    
+    @configclass
+    class PrivilegedCfg_TimeWindows(ObsGroup):
+        command_future = ObsTerm(func=mdp.command_future_frames, params={"command_name": "motion", "n_future_frames": 60})
+        # pdb.set_trace()
+        motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
+        motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})
+        body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
+        body_ori = ObsTerm(func=mdp.robot_body_ori_b, params={"command_name": "motion"})
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        actions = ObsTerm(func=mdp.last_action)
     @configclass
     class PrivilegedCfgVQVAE(ObsGroup):
         # command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
-        motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
-        motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})
-        body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
-        body_ori = ObsTerm(func=mdp.robot_body_ori_b, params={"command_name": "motion"})
-        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
-        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        actions = ObsTerm(func=mdp.last_action)
         latent_space = ObsTerm(
             func=mdp.latent_space, 
             params={
                 "command_name": "motion",
-                "vqvae_model_path": "/home/thomas/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/final_model.pt",
-                "window_size": 60
+                "vqvae_model_path": "/home/yuxin/Projects/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/final_model.pt",
+                "n_future_frames": 60
             }
         )
-    # observation groups
-    # policy: PolicyCfg = PolicyCfg()
+        motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
+        motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})
+        body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
+        body_ori = ObsTerm(func=mdp.robot_body_ori_b, params={"command_name": "motion"})
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        actions = ObsTerm(func=mdp.last_action)
+
+    
+    # # policy: PolicyCfg = PolicyCfg()
     policy: PolicyCfgVQVAE = PolicyCfgVQVAE()
+    # policy: PolicyCfg_TimeWindows = PolicyCfg_TimeWindows()
     # critic: PrivilegedCfg = PrivilegedCfg()
     critic: PrivilegedCfgVQVAE = PrivilegedCfgVQVAE()
+    # critic: PrivilegedCfg_TimeWindows = PrivilegedCfg_TimeWindows()
+
+    print(f"Using observation group: {policy.__class__.__name__}")
 
 @configclass
 class EventCfg:
@@ -214,7 +248,7 @@ class EventCfg:
             "num_buckets": 64,
         },
     )
-
+    
     add_joint_default_pos = EventTerm(
         func=mdp.randomize_joint_default_pos,
         mode="startup",
@@ -316,12 +350,13 @@ class TerminationsCfg:
         params={
             "command_name": "motion",
             "threshold": 0.25,
-            "body_names": [
-                "left_ankle_roll_link",
-                "right_ankle_roll_link",
-                "left_wrist_yaw_link",
-                "right_wrist_yaw_link",
-            ],
+                "body_names": [
+                    "left_ankle_roll_link",
+                    "right_ankle_roll_link",
+                    "left_wrist_yaw_link",
+                    "right_wrist_yaw_link",
+                ],
+                "kwargs": {"debug": True},
         },
     )
 
@@ -343,7 +378,7 @@ class TrackingEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: MySceneCfg = MySceneCfg(num_envs=4096, env_spacing=2.5)  # Increased from 2.5 to 5.0 for quantitative analysis
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
