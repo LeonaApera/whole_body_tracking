@@ -31,9 +31,9 @@ def bad_anchor_ori(
     asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
     command: MotionCommand = env.command_manager.get_term(command_name)
-    motion_projected_gravity_b = math_utils.quat_apply_inverse(command.anchor_quat_w, asset.data.GRAVITY_VEC_W)
+    motion_projected_gravity_b = math_utils.quat_rotate_inverse(command.anchor_quat_w, asset.data.GRAVITY_VEC_W)
 
-    robot_projected_gravity_b = math_utils.quat_apply_inverse(command.robot_anchor_quat_w, asset.data.GRAVITY_VEC_W)
+    robot_projected_gravity_b = math_utils.quat_rotate_inverse(command.robot_anchor_quat_w, asset.data.GRAVITY_VEC_W)
 
     return (motion_projected_gravity_b[:, 2] - robot_projected_gravity_b[:, 2]).abs() > threshold
 
@@ -49,7 +49,7 @@ def bad_motion_body_pos(
 
 
 def bad_motion_body_pos_z_only(
-    env: ManagerBasedRLEnv, command_name: str, threshold: float, body_names: list[str] | None = None
+    env: ManagerBasedRLEnv, command_name: str, threshold: float, body_names: list[str] | None = None, kwargs: dict | None = None
 ) -> torch.Tensor:
     command: MotionCommand = env.command_manager.get_term(command_name)
 
