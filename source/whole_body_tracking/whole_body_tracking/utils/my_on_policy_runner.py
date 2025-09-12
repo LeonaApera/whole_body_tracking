@@ -32,22 +32,22 @@ class MotionOnPolicyRunner(OnPolicyRunner):
         """Save the model and training information."""
         super().save(path, infos)
         
-        # 在保存模型时尝试链接到 WandB Registry
+    # Try to link to WandB Registry when saving the model
         if hasattr(self, 'registry_name') and self.registry_name:
             try:
-                # 确保 registry_name 格式为 'collection:alias'
+                # Ensure registry_name format is 'collection:alias'
                 registry_name = self.registry_name
                 if ':' not in registry_name:
                     registry_name = f"{registry_name}:latest"
                 
-                # 如果存在 registry_name，创建一个到该 artifact 的链接
+                # If registry_name exists, create a link to the artifact
                 run = wandb.run
                 if run:
                     run.use_artifact(registry_name)
                     print(f"[INFO] Linked model to motion artifact collection: {registry_name}")
             except Exception as e:
                 print(f"[WARNING] Could not link to motion artifact: {e}")
-                # 即使链接失败，也继续保存模型
+                # Continue saving the model even if linking fails
         
         if self.logger_type in ["wandb"]:
             policy_path = path.split("model")[0]
