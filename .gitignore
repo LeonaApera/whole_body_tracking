@@ -39,6 +39,7 @@ _build
 *.pkl
 *.zarr
 *.npz
+*.pt
 
 **/assets/
 artifacts/

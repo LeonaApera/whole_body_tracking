@@ -7,6 +7,17 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
+def get_observation_classes():
+    """Get the appropriate observation classes based on the mode."""
+    if OBSERVATION_MODE == "vqvae":
+        return ObservationsCfg.PolicyCfgVQVAE, ObservationsCfg.PrivilegedCfgVQVAE
+    elif OBSERVATION_MODE == "timewindows":
+        return ObservationsCfg.PolicyCfg_TimeWindows, ObservationsCfg.PrivilegedCfg_TimeWindows
+    elif OBSERVATION_MODE == "vqvae_global":
+        return ObservationsCfg.PolicyCfg_vqvae_global, ObservationsCfg.PrivilegedCfg_vqvae_global
+    else:  # default
+        return ObservationsCfg.PolicyCfg, ObservationsCfg.PrivilegedCfg
+    
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
@@ -41,16 +52,7 @@ VELOCITY_RANGE = {
 # Options: "default", "vqvae", "timewindows"
 OBSERVATION_MODE = os.getenv("OBS_MODE", "default")
 
-def get_observation_classes():
-    """Get the appropriate observation classes based on the mode."""
-    if OBSERVATION_MODE == "vqvae":
-        return PolicyCfgVQVAE, PrivilegedCfgVQVAE
-    elif OBSERVATION_MODE == "timewindows":
-        return PolicyCfg_TimeWindows, PrivilegedCfg_TimeWindows
-    elif OBSERVATION_MODE == "vqvae_global":
-        return PolicyCfg_vqvae_global, PrivilegedCfg_vqvae_global
-    else:  # default
-        return PolicyCfg, PrivilegedCfg
+
 
 
 @configclass
@@ -145,12 +147,13 @@ class ObservationsCfg:
         actions = ObsTerm(func=mdp.last_action)
     @configclass
     class PolicyCfg_vqvae_global(ObsGroup):
-        latent_space = ObsTerm(
-            func=mdp.latent_space, 
+        latent_space_67 = ObsTerm(
+            func=mdp.latent_space_67, 
             params={
                 "command_name": "motion",
-                "vqvae_model_path": "/home/yuxin/Projects/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/final_model.pt",
-                "n_future_frames": 100
+                "vqvae_model_path": "/home/yuxin/Projects/VQVAE/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/vqvae/best_model_32.pt",
+                "n_future_frames": 100,
+                "dim": 32
             }
         )
         
@@ -230,12 +233,13 @@ class ObservationsCfg:
     @configclass
     class PrivilegedCfg_vqvae_global(ObsGroup):
         # command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
-        latent_space = ObsTerm(
-            func=mdp.latent_space, 
+        latent_space_67 = ObsTerm(
+            func=mdp.latent_space_67, 
             params={
                 "command_name": "motion",
-                "vqvae_model_path": "/home/yuxin/Projects/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/final_model.pt",
-                "n_future_frames": 100
+                "vqvae_model_path": "/home/yuxin/Projects/VQVAE/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/vqvae/best_model_32.pt",
+                "n_future_frames": 100,
+                "dim": 32
             }
         )
         # motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
@@ -294,6 +298,17 @@ class ObservationsCfg:
         print(f"Policy class: {PolicyClass.__name__}")
         print(f"Critic class: {PrivilegedClass.__name__}")
 
+
+def get_observation_classes():
+    """Get the appropriate observation classes based on the mode."""
+    if OBSERVATION_MODE == "vqvae":
+        return ObservationsCfg.PolicyCfgVQVAE, ObservationsCfg.PrivilegedCfgVQVAE
+    elif OBSERVATION_MODE == "timewindows":
+        return ObservationsCfg.PolicyCfg_TimeWindows, ObservationsCfg.PrivilegedCfg_TimeWindows
+    elif OBSERVATION_MODE == "vqvae_global":
+        return ObservationsCfg.PolicyCfg_vqvae_global, ObservationsCfg.PrivilegedCfg_vqvae_global
+    else:  # default
+        return ObservationsCfg.PolicyCfg, ObservationsCfg.PrivilegedCfg
 @configclass
 class EventCfg:
     """Configuration for events."""

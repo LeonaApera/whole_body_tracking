@@ -346,3 +346,207 @@ def latent_space(env: ManagerBasedEnv,
     latent_features = torch.cat([lower_latent, upper_latent], dim=1)  # (batch_size, 2 * code_dim)
 
     return latent_features.view(env.num_envs, -1)
+
+def latent_space_67(env: ManagerBasedEnv, 
+                 command_name: str,
+                 vqvae_model_path: str = "/home/yuxin/Projects/VQVAE/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/vqvae/best_model_32.pt",
+                 n_future_frames: int = 100, 
+                 dim: int = 32) -> torch.Tensor:
+    """
+    Generate latent space representation using pre-trained VQ-VAE model with 67-dimensional features.
+    
+    Args:
+        env: The environment instance
+        command_name: Name of the motion command to use
+        vqvae_model_path: Path to the pre-trained VQ-VAE model checkpoint
+        n_future_frames: Size of the sliding window (default: 100 frames)
+
+    Returns:
+        Latent features from VQ-VAE encoder
+        Shape: (num_envs, latent_dim * reduced_time_steps)
+    """
+    import os
+    import sys
+    sys.path.append('/home/yuxin/Projects/VQVAE/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/vqvae')
+    from vqvae_dim_experiment import VQVae
+    from lafan1_sliding_window_dataset import LAFAN1MotionData
+    
+    # Get the motion command
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    
+    # Initialize VQ-VAE model if not already loaded
+    if not hasattr(env, '_vqvae_67_model'):
+        # Load the pre-trained model
+        model_path = vqvae_model_path
+        
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"VQ-VAE model not found at {model_path}")
+        
+        # Create model instance with correct parameters for 67-dimensional features
+        env._vqvae_67_model = VQVae(
+            nfeats=67,  # 29 joint_pos + 29 joint_vel + 3 anchor_pos + 6 anchor_rot_6d
+            quantizer='ema_reset',
+            code_num=512,
+            code_dim=dim,
+            output_emb_width=dim,
+            down_t=2,
+            stride_t=2,
+            width=512,
+            depth=3,
+            dilation_growth_rate=3,
+            norm=None,
+            activation='relu'
+        )
+        
+        # Load the pre-trained weights
+        checkpoint = torch.load(model_path, map_location=env.device)
+        if 'model_state_dict' in checkpoint:
+            env._vqvae_67_model.load_state_dict(checkpoint['model_state_dict'])
+        else:
+            env._vqvae_67_model.load_state_dict(checkpoint)
+        
+        env._vqvae_67_model.to(env.device)
+        env._vqvae_67_model.eval()
+        
+        print(f"[INFO] Loaded VQ-VAE 67-dim model from {model_path}")
+    
+    # Prepare motion data window using future n frames relative to current timestep
+    batch_size = env.num_envs
+
+    # Determine n_joints robustly from command config or motion data
+    n_joints = 29  # Default for LAFAN1 format
+    if hasattr(command.cfg, 'n_joints'):
+        n_joints = int(command.cfg.n_joints)
+
+    # We'll build a future window of length n_future_frames with 67-dimensional features
+    motion_window = torch.zeros(batch_size, n_future_frames, 67, device=env.device)
+
+    for env_idx in range(batch_size):
+        # Determine motion index and current timestep robustly
+        if hasattr(command, 'current_motion_indices'):
+            motion_idx = int(command.current_motion_indices[env_idx].item())
+        else:
+            motion_idx = 0
+
+        if hasattr(command, 'time_steps'):
+            current_timestep = int(command.time_steps[env_idx].item())
+        elif hasattr(command, 'time_step'):
+            current_timestep = int(command.time_step)
+        else:
+            # If no timestep info, skip
+            continue
+
+        # Fetch motion arrays depending on command type
+        motion_joint_pos = None
+        motion_joint_vel = None
+        motion_anchor_pos = None
+        motion_anchor_quat = None
+        
+        try:
+            if hasattr(command, 'motion_loader') and hasattr(command.motion_loader, 'motions'):
+                motion_data = command.motion_loader.motions[motion_idx]
+                motion_joint_pos = motion_data.get('joint_pos', None)
+                motion_joint_vel = motion_data.get('joint_vel', None)
+                # For anchor data, we need to access body data
+                if 'body_pos_w' in motion_data and 'body_quat_w' in motion_data:
+                    motion_anchor_pos = motion_data['body_pos_w'][:, 0, :]  # (T, 3) - first body as anchor
+                    motion_anchor_quat = motion_data['body_quat_w'][:, 0, :]  # (T, 4)
+            elif hasattr(command, 'motion'):
+                # single-motion command; assume motion.joint_pos shape (T, n_joints)
+                motion_joint_pos = getattr(command.motion, 'joint_pos', None)
+                motion_joint_vel = getattr(command.motion, 'joint_vel', None)
+                # Try to get anchor data from motion
+                if hasattr(command.motion, 'body_pos_w') and hasattr(command.motion, 'body_quat_w'):
+                    motion_anchor_pos = command.motion.body_pos_w[:, 0, :]
+                    motion_anchor_quat = command.motion.body_quat_w[:, 0, :]
+        except Exception:
+            motion_joint_pos = None
+            motion_joint_vel = None
+            motion_anchor_pos = None
+            motion_anchor_quat = None
+
+        if motion_joint_pos is None or motion_joint_vel is None:
+            # nothing we can do for this env, leave zeros
+            continue
+
+        # Ensure numpy -> tensor and on correct device
+        if not isinstance(motion_joint_pos, torch.Tensor):
+            motion_joint_pos = torch.tensor(motion_joint_pos, dtype=torch.float32, device=env.device)
+        if not isinstance(motion_joint_vel, torch.Tensor):
+            motion_joint_vel = torch.tensor(motion_joint_vel, dtype=torch.float32, device=env.device)
+        
+        # Convert anchor quaternion to 6D rotation representation if available
+        anchor_rot_6d = None
+        if motion_anchor_pos is not None and motion_anchor_quat is not None:
+            if not isinstance(motion_anchor_pos, torch.Tensor):
+                motion_anchor_pos = torch.tensor(motion_anchor_pos, dtype=torch.float32, device=env.device)
+            if not isinstance(motion_anchor_quat, torch.Tensor):
+                motion_anchor_quat = torch.tensor(motion_anchor_quat, dtype=torch.float32, device=env.device)
+            
+            # Convert quaternion to rotation matrix and extract first 2 columns (6D representation)
+            # Normalize quaternion
+            motion_anchor_quat = motion_anchor_quat / torch.norm(motion_anchor_quat, dim=-1, keepdim=True)
+            
+            w, x, y, z = motion_anchor_quat[:, 0], motion_anchor_quat[:, 1], motion_anchor_quat[:, 2], motion_anchor_quat[:, 3]
+            
+            # Compute rotation matrix elements
+            xx, yy, zz = x*x, y*y, z*z
+            xy, xz, yz = x*y, x*z, y*z
+            wx, wy, wz = w*x, w*y, w*z
+            
+            # Build rotation matrix
+            T_anchor = motion_anchor_pos.shape[0]
+            R = torch.zeros(T_anchor, 3, 3, device=env.device, dtype=torch.float32)
+            
+            R[:, 0, 0] = 1 - 2*(yy + zz)
+            R[:, 0, 1] = 2*(xy - wz)
+            R[:, 0, 2] = 2*(xz + wy)
+            
+            R[:, 1, 0] = 2*(xy + wz)
+            R[:, 1, 1] = 1 - 2*(xx + zz)
+            R[:, 1, 2] = 2*(yz - wx)
+            
+            R[:, 2, 0] = 2*(xz - wy)
+            R[:, 2, 1] = 2*(yz + wx)
+            R[:, 2, 2] = 1 - 2*(xx + yy)
+            
+            # Extract first 2 columns and flatten to 6D
+            anchor_rot_6d = R[:, :, :2].reshape(T_anchor, 6)  # (T, 6)
+
+        T = motion_joint_pos.shape[0]
+        # future window starts at next frame
+        start_idx = current_timestep
+        end_idx = min(T, start_idx + n_future_frames)
+        actual_length = int(max(0, end_idx - start_idx))
+
+        if actual_length > 0:
+            window_joint_pos = motion_joint_pos[start_idx:end_idx]  # (actual_length, n_joints)
+            window_joint_vel = motion_joint_vel[start_idx:end_idx]  # (actual_length, n_joints)
+            
+            # 替换逐帧循环
+            window_data = torch.cat([
+                window_joint_pos,  # (actual_length, 29)
+                window_joint_vel,  # (actual_length, 29)
+            motion_anchor_pos[start_idx:end_idx] if motion_anchor_pos is not None else torch.zeros(actual_length, 3, device=env.device),
+                anchor_rot_6d[start_idx:end_idx] if anchor_rot_6d is not None else torch.zeros(actual_length, 6, device=env.device)
+                ], dim=1)  # (actual_length, 67)
+
+            if actual_length >= n_future_frames:
+                motion_window[env_idx] = window_data[:n_future_frames]
+            else:
+                motion_window[env_idx, :actual_length] = window_data
+                if actual_length > 0:
+                    # Pad with the last frame
+                    pad_length = int(n_future_frames - actual_length)
+                    motion_window[env_idx, actual_length:] = window_data[-1].unsqueeze(0).repeat(pad_length, 1)
+    
+    # Encode using VQ-VAE (get latent representations from encoder)
+    with torch.no_grad():
+        # Forward through encoder to get latent representation
+        x_in = motion_window.permute(0, 2, 1)  # (batch_size, 67, n_future_frames)
+        x_encoder = env._vqvae_67_model.encoder(x_in)  # (batch_size, code_dim, reduced_time)
+        x_quantized, commit_loss, perplexity = env._vqvae_67_model.quantizer(x_encoder)
+        # Flatten temporal dimension to get fixed-size representation
+        latent_features = x_quantized[:,:,0]
+
+    return latent_features
