@@ -136,6 +136,36 @@ class ObservationsCfg:
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5))
         actions = ObsTerm(func=mdp.last_action)
     @configclass
+    class PolicyCfg_without_global(ObsGroup):
+        """Observations for policy group without global anchor."""
+        command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
+        # motion_anchor_pos_b = ObsTerm(
+        #     func=mdp.motion_anchor_pos_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.25, n_max=0.25)
+        # )
+        # motion_anchor_ori_b = ObsTerm(
+        #     func=mdp.motion_anchor_ori_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.05, n_max=0.05)
+        # )
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        actions = ObsTerm(func=mdp.last_action)
+    @configclass
+    class PolicyCfg_without_global_pos(ObsGroup):
+        """Observations for policy group without global anchor and position."""
+        command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
+        # motion_anchor_pos_b = ObsTerm(
+        #     func=mdp.motion_anchor_pos_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.25, n_max=0.25)
+        # )
+        motion_anchor_ori_b = ObsTerm(
+            func=mdp.motion_anchor_ori_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.05, n_max=0.05)
+        )
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        actions = ObsTerm(func=mdp.last_action)
+    @configclass
     class PolicyCfg_vqvae_global(ObsGroup):
         # latent_space_67 = ObsTerm(
         #     func=mdp.latent_space_67, 
@@ -227,7 +257,30 @@ class ObservationsCfg:
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
         actions = ObsTerm(func=mdp.last_action)
-    
+    @configclass
+    class PrivilegedCfg_without_global(ObsGroup):
+        command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
+        # motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
+        # motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})
+        body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
+        body_ori = ObsTerm(func=mdp.robot_body_ori_b, params={"command_name": "motion"})
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        actions = ObsTerm(func=mdp.last_action)
+    @configclass
+    class PrivilegedCfg_without_global_pos(ObsGroup):
+        command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
+        # motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
+        motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})
+        body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
+        body_ori = ObsTerm(func=mdp.robot_body_ori_b, params={"command_name": "motion"})
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        actions = ObsTerm(func=mdp.last_action)
     @configclass
     class PrivilegedCfg_vqvae_global(ObsGroup):
         # command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
@@ -303,6 +356,10 @@ def get_observation_classes():
         return ObservationsCfg.PolicyCfg_TimeWindows, ObservationsCfg.PrivilegedCfg_TimeWindows
     elif OBSERVATION_MODE == "vqvae_global":
         return ObservationsCfg.PolicyCfg_vqvae_global, ObservationsCfg.PrivilegedCfg_vqvae_global
+    elif OBSERVATION_MODE == "original_without_global":
+        return ObservationsCfg.PolicyCfg_without_global, ObservationsCfg.PrivilegedCfg_without_global
+    elif OBSERVATION_MODE == "original_without_global_pos":
+        return ObservationsCfg.PolicyCfg_without_global_pos, ObservationsCfg.PrivilegedCfg_without_global_pos
     else:  # default
         return ObservationsCfg.PolicyCfg, ObservationsCfg.PrivilegedCfg
 @configclass
