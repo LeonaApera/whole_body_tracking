@@ -7,16 +7,6 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
-def get_observation_classes():
-    """Get the appropriate observation classes based on the mode."""
-    if OBSERVATION_MODE == "vqvae":
-        return ObservationsCfg.PolicyCfgVQVAE, ObservationsCfg.PrivilegedCfgVQVAE
-    elif OBSERVATION_MODE == "timewindows":
-        return ObservationsCfg.PolicyCfg_TimeWindows, ObservationsCfg.PrivilegedCfg_TimeWindows
-    elif OBSERVATION_MODE == "vqvae_global":
-        return ObservationsCfg.PolicyCfg_vqvae_global, ObservationsCfg.PrivilegedCfg_vqvae_global
-    else:  # default
-        return ObservationsCfg.PolicyCfg, ObservationsCfg.PrivilegedCfg
     
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -147,13 +137,21 @@ class ObservationsCfg:
         actions = ObsTerm(func=mdp.last_action)
     @configclass
     class PolicyCfg_vqvae_global(ObsGroup):
+        # latent_space_67 = ObsTerm(
+        #     func=mdp.latent_space_67, 
+        #     params={
+        #         "command_name": "motion",
+        #         "vqvae_model_path": "/home/yuxin/Projects/VQVAE/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/vqvae/best_model_32.pt",
+        #         "n_future_frames": 100,
+        #         "dim": 32
+        #     }
+        # )
+        # 直接读取预处理的潜在特征
         latent_space_67 = ObsTerm(
-            func=mdp.latent_space_67, 
+            func=mdp.latent_space_67_preprocessed,
             params={
                 "command_name": "motion",
-                "vqvae_model_path": "/home/yuxin/Projects/VQVAE/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/vqvae/best_model_32.pt",
-                "n_future_frames": 100,
-                "dim": 32
+                "preprocessed_file_path": "/workspace/projects/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/test_preprocessed/dance1_subject2_motion_latents_w100_d128.pkl"
             }
         )
         
@@ -234,12 +232,10 @@ class ObservationsCfg:
     class PrivilegedCfg_vqvae_global(ObsGroup):
         # command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
         latent_space_67 = ObsTerm(
-            func=mdp.latent_space_67, 
+            func=mdp.latent_space_67_preprocessed,
             params={
                 "command_name": "motion",
-                "vqvae_model_path": "/home/yuxin/Projects/VQVAE/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/vqvae/best_model_32.pt",
-                "n_future_frames": 100,
-                "dim": 32
+                "preprocessed_file_path": "/workspace/projects/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/test_preprocessed/dance1_subject2_motion_latents_w100_d128.pkl"
             }
         )
         # motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})

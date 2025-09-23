@@ -550,3 +550,74 @@ def latent_space_67(env: ManagerBasedEnv,
         latent_features = x_quantized[:,:,0]
 
     return latent_features
+
+
+def latent_space_67_preprocessed(env: ManagerBasedEnv, 
+                                command_name: str,
+                                preprocessed_file_path: str) -> torch.Tensor:
+    """
+    Read preprocessed VQ-VAE latent features from file (OPTIMIZED VERSION).
+    
+    This function loads pre-computed latent features to avoid real-time VQ-VAE inference,
+    significantly improving training and inference speed. Uses vectorized operations
+    for maximum performance.
+    
+    Args:
+        env: The environment instance
+        command_name: Name of the motion command to use
+        preprocessed_file_path: Path to the preprocessed latent features file (.pkl)
+
+    Returns:
+        Latent features for current timestep
+        Shape: (num_envs, latent_dim)
+    """
+    import pickle
+    import os
+    
+    # Initialize preprocessed features loader if not already loaded
+    # OPTIMIZATION: Load all features to GPU once, avoiding repeated conversions
+    if not hasattr(env, '_preprocessed_latents_gpu'):
+        if not os.path.exists(preprocessed_file_path):
+            raise FileNotFoundError(f"Preprocessed features file not found: {preprocessed_file_path}")
+        
+        with open(preprocessed_file_path, 'rb') as f:
+            preprocessed_data = pickle.load(f)
+        
+        # Convert all latent features to GPU tensor at once
+        latent_list = preprocessed_data['latent_features']
+        if isinstance(latent_list[0], torch.Tensor):
+            latent_tensor = torch.stack(latent_list).to(env.device)
+        else:
+            latent_tensor = torch.tensor(latent_list, device=env.device, dtype=torch.float32)
+        
+        env._preprocessed_latents_gpu = latent_tensor  # Shape: (T, latent_dim)
+        env._preprocessed_metadata = preprocessed_data['metadata']
+        
+        print(f"[INFO] Loaded and optimized preprocessed latent features")
+        print(f"  Motion: {env._preprocessed_metadata['filename']}")
+        print(f"  Shape: {latent_tensor.shape}")
+        print(f"  Device: {latent_tensor.device}")
+    
+    # Get the motion command to determine current timestep
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    
+    # OPTIMIZATION: Get all timesteps at once (vectorized)
+    if hasattr(command, 'time_steps'):
+        timesteps = command.time_steps  # Shape: (num_envs,)
+    elif hasattr(command, 'time_step'):
+        if hasattr(command.time_step, '__getitem__'):
+            timesteps = command.time_step
+        else:
+            timesteps = command.time_step.expand(env.num_envs)
+    else:
+        # Fallback: assume all environments at timestep 0
+        timesteps = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
+    
+    # OPTIMIZATION: Clamp timesteps to valid range to avoid out-of-bounds errors
+    max_timestep = env._preprocessed_latents_gpu.shape[0] - 1
+    timesteps = torch.clamp(timesteps, 0, max_timestep)
+    
+    # OPTIMIZATION: Batch indexing - single GPU operation instead of 8192 loops!
+    latent_features = env._preprocessed_latents_gpu[timesteps]  # Shape: (num_envs, latent_dim)
+    
+    return latent_features.view(env.num_envs, -1)
