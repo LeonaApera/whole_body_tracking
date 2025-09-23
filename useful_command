@@ -51,3 +51,5 @@ ${ISAACLAB_PATH}/isaaclab.sh -p scripts/rsl_rl/eval.py \
     --num_episodes=5 \
     --max_steps=600 \
     --headless
+ cd /workspace/projects/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp && python preprocess_latent_features.py --registry_name "jianuocao0105-nanjing-university-org/wandb-registry-motions/dance1_subject2" --output_dir "./test_preprocessed" --device cpu
+ export OBS_MODE=vqvae_global && CUDA_VISIBLE_DEVICES=2 python scripts/rsl_rl/train.py --task Tracking-Flat-G1-v0 --num_envs 8192  --max_iterations 50000 --headless --logger wandb --log_project_name try --run_name dim128_nfeats67_sliding  --registry_name=jianuocao0105-nanjing-university-org/wandb-registry-motions/dance1_subject2
