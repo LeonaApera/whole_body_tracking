@@ -124,6 +124,7 @@ class ObservationsCfg:
 
         # observation terms (order preserved)
         command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
+
         motion_anchor_pos_b = ObsTerm(
             func=mdp.motion_anchor_pos_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.25, n_max=0.25)
         )
@@ -181,7 +182,7 @@ class ObservationsCfg:
             func=mdp.latent_space_67_preprocessed,
             params={
                 "command_name": "motion",
-                "preprocessed_file_path": "/workspace/projects/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/test_preprocessed/dance1_subject2_motion_latents_w100_d128.pkl"
+                "preprocessed_file_path": "/workspace/projects/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/test_preprocessed/dance1_subject2_motion_latents_w100_d32.pkl"
             }
         )
         
@@ -243,7 +244,20 @@ class ObservationsCfg:
         def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
-    
+    @configclass
+    class PolicyCfgVQVAE_yaw(ObsGroup):
+        """Observations for policy group with VQ-VAE latent space and relative quaternions."""
+        vqvae_latent_codes = ObsTerm(func=mdp.vqvae_latent_codes, params={"command_name": "motion", "vqvae_data_dir": "/home/yuxin/Projects/VQVAE/VAE/58_concat_32dim"})  # 32维
+        pred_quat_relative = ObsTerm(func=mdp.predicted_anchor_ori_b, params={"command_name": "motion", "quat_inference_dir": "/home/yuxin/Projects/VQVAE/VAE/code_to_quat_checkpoints/code_to_quat_20250927_013708/quat_inference"})
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        actions = ObsTerm(func=mdp.last_action)
+
+        def __post_init__(self):
+            self.enable_corruption = True
+            self.concatenate_terms = True
     @configclass
     class PrivilegedCfg(ObsGroup):
         command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
@@ -288,7 +302,7 @@ class ObservationsCfg:
             func=mdp.latent_space_67_preprocessed,
             params={
                 "command_name": "motion",
-                "preprocessed_file_path": "/workspace/projects/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/test_preprocessed/dance1_subject2_motion_latents_w100_d128.pkl"
+                "preprocessed_file_path": "/workspace/projects/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/test_preprocessed/dance1_subject2_motion_latents_w100_d32.pkl"
             }
         )
         # motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
@@ -334,8 +348,18 @@ class ObservationsCfg:
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
         actions = ObsTerm(func=mdp.last_action)
-
-    
+    @configclass
+    class PrivilegedCfgVQVAE_yaw(ObsGroup):
+        """Observations for privileged group with VQ-VAE latent space and yaw angles."""
+        vqvae_latent_codes = ObsTerm(func=mdp.vqvae_latent_codes, params={"command_name": "motion", "vqvae_data_dir": "/home/yuxin/Projects/VQVAE/VAE/58_concat_32dim"})  # 32维
+        pred_quat_relative = ObsTerm(func=mdp.predicted_anchor_ori_b, params={"command_name": "motion", "quat_inference_dir": "/home/yuxin/Projects/VQVAE/VAE/code_to_quat_checkpoints/code_to_quat_20250927_013708/quat_inference"})
+        body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
+        body_ori = ObsTerm(func=mdp.robot_body_ori_b, params={"command_name": "motion"})
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        actions = ObsTerm(func=mdp.last_action)
     # Dynamic configuration based on OBSERVATION_MODE
     def __post_init__(self):
         """Initialize dynamic configuration based on OBSERVATION_MODE."""
@@ -360,6 +384,8 @@ def get_observation_classes():
         return ObservationsCfg.PolicyCfg_without_global, ObservationsCfg.PrivilegedCfg_without_global
     elif OBSERVATION_MODE == "original_without_global_pos":
         return ObservationsCfg.PolicyCfg_without_global_pos, ObservationsCfg.PrivilegedCfg_without_global_pos
+    elif OBSERVATION_MODE == "vqvae_yaw":
+        return ObservationsCfg.PolicyCfgVQVAE_yaw, ObservationsCfg.PrivilegedCfgVQVAE_yaw
     else:  # default
         return ObservationsCfg.PolicyCfg, ObservationsCfg.PrivilegedCfg
 @configclass
