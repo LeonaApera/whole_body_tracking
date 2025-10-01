@@ -3,7 +3,7 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 import pdb
-from isaaclab.utils.math import matrix_from_quat, subtract_frame_transforms
+from isaaclab.utils.math import matrix_from_quat, subtract_frame_transforms, quat_rotate_inverse
 
 from whole_body_tracking.tasks.tracking.mdp.commands import MotionCommand
 
@@ -342,7 +342,8 @@ def latent_space(env: ManagerBasedEnv,
     # # Global average pooling to get fixed-size representation
     # lower_pooled = torch.mean(lower_latent, dim=2)  # (batch_size, code_dim)
     # upper_pooled = torch.mean(upper_latent, dim=2)  # (batch_size, code_dim)
-    
+    lower_latent = lower_latent[:,:,0]  # (batch_size, code_dim)
+    upper_latent = upper_latent[:,:,0]  # (batch_size, code_dim)
     # Concatenate lower and upper body features
     latent_features = torch.cat([lower_latent, upper_latent], dim=1)  # (batch_size, 2 * code_dim)
 
@@ -927,4 +928,35 @@ def quaternion_to_rotation_matrix_batch(quat: torch.Tensor) -> torch.Tensor:
     R[:, 2, 2] = 1 - 2*(xx + yy)
     
     return R
+
+
+def projected_gravity(env: ManagerBasedEnv) -> torch.Tensor:
+    """
+    Projection of the gravity direction on base frame.
+    
+    This function computes the gravity vector projected into the robot's base frame,
+    which provides information about the robot's orientation relative to gravity.
+    This is useful for balance and orientation control.
+    
+    Args:
+        env: The environment instance
+        
+    Returns:
+        Projected gravity vector in base frame
+        Shape: (num_envs, 3)
+    """
+    # Get robot data
+    robot = env.scene["robot"]
+    
+    # Define gravity vector in world frame (pointing downward)
+    gravity_vec_w = torch.tensor([0.0, 0.0, -1.0], device=env.device, dtype=torch.float32)
+    gravity_vec_w = gravity_vec_w.unsqueeze(0).repeat(env.num_envs, 1)  # Shape: (num_envs, 3)
+    
+    # Get robot root link quaternion (world frame)
+    root_link_quat_w = robot.data.root_link_quat_w  # Shape: (num_envs, 4)
+    
+    # Project gravity vector into robot base frame using quaternion rotation
+    projected_gravity_b = quat_rotate_inverse(root_link_quat_w, gravity_vec_w)
+    
+    return projected_gravity_b.view(env.num_envs, -1)
 

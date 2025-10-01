@@ -221,7 +221,7 @@ class ObservationsCfg:
             func=mdp.latent_space, 
             params={
                 "command_name": "motion",
-                "vqvae_model_path": "/home/yuxin/Projects/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/final_model.pt",
+                "vqvae_model_path": "/home/yuxin/Projects/VQVAE/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/final_model_58_global.pt",
                 "n_future_frames": 60
             }
         )
@@ -249,6 +249,21 @@ class ObservationsCfg:
         """Observations for policy group with VQ-VAE latent space and relative quaternions."""
         vqvae_latent_codes = ObsTerm(func=mdp.vqvae_latent_codes, params={"command_name": "motion", "vqvae_data_dir": "/home/yuxin/Projects/VQVAE/VAE/58_concat_32dim"})  # 32维
         pred_quat_relative = ObsTerm(func=mdp.predicted_anchor_ori_b, params={"command_name": "motion", "quat_inference_dir": "/home/yuxin/Projects/VQVAE/VAE/code_to_quat_checkpoints/code_to_quat_20250927_013708/quat_inference"})
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        actions = ObsTerm(func=mdp.last_action)
+
+        def __post_init__(self):
+            self.enable_corruption = True
+            self.concatenate_terms = True
+    @configclass
+    class PolicyCfgVQVAE_yaw_gravity(ObsGroup):
+        """Observations for policy group with VQ-VAE latent space and relative quaternions."""
+        vqvae_latent_codes = ObsTerm(func=mdp.vqvae_latent_codes, params={"command_name": "motion", "vqvae_data_dir": "/home/yuxin/Projects/VQVAE/VAE/58_concat_32dim"})  # 32维
+        pred_quat_relative = ObsTerm(func=mdp.predicted_anchor_ori_b, params={"command_name": "motion", "quat_inference_dir": "/home/yuxin/Projects/VQVAE/VAE/code_to_quat_checkpoints/code_to_quat_20250927_013708/quat_inference"})
+        projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05))
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.5, n_max=0.5))
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
         joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
@@ -335,7 +350,7 @@ class ObservationsCfg:
             func=mdp.latent_space, 
             params={
                 "command_name": "motion",
-                "vqvae_model_path": "/home/yuxin/Projects/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/final_model.pt",
+                "vqvae_model_path": "/home/yuxin/Projects/VQVAE/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/final_model_58_global.pt",
                 "n_future_frames": 60
             }
         )
@@ -361,6 +376,19 @@ class ObservationsCfg:
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
         actions = ObsTerm(func=mdp.last_action)
     # Dynamic configuration based on OBSERVATION_MODE
+    @configclass
+    class PrivilegedCfgVQVAE_yaw_gravity(ObsGroup):
+        """Observations for policy group with VQ-VAE latent space and relative quaternions."""
+        vqvae_latent_codes = ObsTerm(func=mdp.vqvae_latent_codes, params={"command_name": "motion", "vqvae_data_dir": "/home/yuxin/Projects/VQVAE/VAE/58_concat_32dim"})  # 32维
+        pred_quat_relative = ObsTerm(func=mdp.predicted_anchor_ori_b, params={"command_name": "motion", "quat_inference_dir": "/home/yuxin/Projects/VQVAE/VAE/code_to_quat_checkpoints/code_to_quat_20250927_013708/quat_inference"})
+        projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05))
+        body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
+        body_ori = ObsTerm(func=mdp.robot_body_ori_b, params={"command_name": "motion"})
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        actions = ObsTerm(func=mdp.last_action)
     def __post_init__(self):
         """Initialize dynamic configuration based on OBSERVATION_MODE."""
         PolicyClass, PrivilegedClass = get_observation_classes()
@@ -386,6 +414,8 @@ def get_observation_classes():
         return ObservationsCfg.PolicyCfg_without_global_pos, ObservationsCfg.PrivilegedCfg_without_global_pos
     elif OBSERVATION_MODE == "vqvae_yaw":
         return ObservationsCfg.PolicyCfgVQVAE_yaw, ObservationsCfg.PrivilegedCfgVQVAE_yaw
+    elif OBSERVATION_MODE == "vqvae_yaw_gravity":
+        return ObservationsCfg.PolicyCfgVQVAE_yaw_gravity, ObservationsCfg.PrivilegedCfgVQVAE_yaw_gravity
     else:  # default
         return ObservationsCfg.PolicyCfg, ObservationsCfg.PrivilegedCfg
 @configclass
@@ -491,7 +521,7 @@ class RewardsCfg:
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
-
+   
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     anchor_pos = DoneTerm(
         func=mdp.bad_anchor_pos_z_only,
