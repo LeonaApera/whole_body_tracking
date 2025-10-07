@@ -109,7 +109,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     elif is_multi_trajectory_task:
         # 多轨迹模式：使用环境配置中预设的 WandB Registry 模式
         print(f"[INFO] Using multi-trajectory mode with registry pattern from environment config")
-        print(f"[INFO] Motion source: {env_cfg.commands.motion.motion_file}")
+        for motion_file in env_cfg.commands.motion.motion_files:
+            print(f"[INFO] Motion source: {motion_file}")
         # motion_file 已经在环境配置中设置为类似 "org/collection/*" 的模式
     else:
         # 既没有 registry_name 也不是多轨迹任务，报错

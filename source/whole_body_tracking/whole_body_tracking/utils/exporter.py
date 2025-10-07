@@ -42,9 +42,8 @@ class _OnnxMotionPolicyExporter(_OnnxPolicyExporter):
             self.body_ang_vel_w = cmd.motion.body_ang_vel_w.to("cpu")
             self.time_step_total = self.joint_pos.shape[0]
         elif hasattr(cmd, 'motion_loader'):
-            # multi trajectory  MultiTrajectoryMotionCommand
+            # multi trajectory (old implementation with motion_loader)
             # use the first motion as a reference (for compatibility)
-            # TODO: choose the right trajectory
             first_motion = cmd.motion_loader.motions[0]
             self.joint_pos = first_motion['joint_pos'].to("cpu")
             self.joint_vel = first_motion['joint_vel'].to("cpu")
@@ -54,6 +53,18 @@ class _OnnxMotionPolicyExporter(_OnnxPolicyExporter):
             self.body_ang_vel_w = first_motion['body_ang_vel_w'][:, cmd.body_indexes].to("cpu")
             self.time_step_total = self.joint_pos.shape[0]
             print(f"[INFO] Using first motion for ONNX export: {cmd.motion_loader.motion_names[0]} ({self.time_step_total} timesteps)")
+        elif hasattr(cmd, 'motions'):
+            # multi trajectory (new MultiTrajectoryMotionCommand implementation)
+            # use the first motion as a reference (for compatibility)
+            first_motion = cmd.motions[0]  # first_motion is a MotionLoader object
+            self.joint_pos = first_motion.joint_pos.to("cpu")
+            self.joint_vel = first_motion.joint_vel.to("cpu")
+            self.body_pos_w = first_motion.body_pos_w.to("cpu")
+            self.body_quat_w = first_motion.body_quat_w.to("cpu")
+            self.body_lin_vel_w = first_motion.body_lin_vel_w.to("cpu")
+            self.body_ang_vel_w = first_motion.body_ang_vel_w.to("cpu")
+            self.time_step_total = self.joint_pos.shape[0]
+            print(f"[INFO] Using first motion for ONNX export: MultiTrajectoryMotionCommand ({self.time_step_total} timesteps)")
         else:
             raise ValueError(f"Unknown motion command type: {type(cmd)}")
 
