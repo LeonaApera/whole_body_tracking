@@ -217,22 +217,15 @@ class ObservationsCfg:
     @configclass
     class PolicyCfgVQVAE(ObsGroup):
         """Observations for policy group with VQ-VAE latent space."""
-        latent_space = ObsTerm(
-            func=mdp.latent_space, 
-            params={
-                "command_name": "motion",
-                "vqvae_model_path": "/home/yuxin/Projects/VQVAE/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/final_model_58_global.pt",
-                "n_future_frames": 60
-            }
-        )
+        vqvae_latent_codes = ObsTerm(func=mdp.vqvae_latent_codes, params={"command_name": "motion", "vqvae_data_dir": "/home/yuxin/Projects/VQVAE/VAE/58_concat_32dim"})  # 32维
         # observation terms (order preserved)
         # command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
-        motion_anchor_pos_b = ObsTerm(
-            func=mdp.motion_anchor_pos_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.25, n_max=0.25)
-        )
-        motion_anchor_ori_b = ObsTerm(
-            func=mdp.motion_anchor_ori_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.05, n_max=0.05)
-        )
+        # motion_anchor_pos_b = ObsTerm(
+        #     func=mdp.motion_anchor_pos_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.25, n_max=0.25)
+        # )
+        # motion_anchor_ori_b = ObsTerm(
+        #     func=mdp.motion_anchor_ori_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.05, n_max=0.05)
+        # )
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.5, n_max=0.5))
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
         joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
@@ -346,16 +339,9 @@ class ObservationsCfg:
     @configclass
     class PrivilegedCfgVQVAE(ObsGroup):
         # command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
-        latent_space = ObsTerm(
-            func=mdp.latent_space, 
-            params={
-                "command_name": "motion",
-                "vqvae_model_path": "/home/yuxin/Projects/VQVAE/whole_body_tracking/source/whole_body_tracking/whole_body_tracking/tasks/tracking/mdp/final_model_58_global.pt",
-                "n_future_frames": 60
-            }
-        )
-        motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
-        motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})
+        vqvae_latent_codes = ObsTerm(func=mdp.vqvae_latent_codes, params={"command_name": "motion", "vqvae_data_dir": "/home/yuxin/Projects/VQVAE/VAE/58_concat_32dim"})  # 32维
+        # motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
+        # motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})
         body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
         body_ori = ObsTerm(func=mdp.robot_body_ori_b, params={"command_name": "motion"})
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)

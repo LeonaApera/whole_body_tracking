@@ -54,11 +54,13 @@ class MultiTrajectoryMotionCommand(CommandTerm):
         self.body_pos_relative_w = torch.zeros(self.num_envs, len(cfg.body_names), 3, device=self.device)
         self.body_quat_relative_w = torch.zeros(self.num_envs, len(cfg.body_names), 4, device=self.device)
         self.body_quat_relative_w[:, :, 0] = 1.0
-        max_bin_count = max(
-                int(motion.time_step_total // (1 / (env.cfg.decimation * env.cfg.sim.dt))) + 1 
-                for motion in self.motions
-            )
-        self.bin_count = max_bin_count
+        # Problem 1: Concatenate all motion bins instead of using max
+        motion_bin_counts = [
+            int(motion.time_step_total // (1 / (env.cfg.decimation * env.cfg.sim.dt))) + 1 
+            for motion in self.motions
+        ]
+        self.bin_count = sum(motion_bin_counts)
+        self.motion_bin_offsets = torch.cumsum(torch.tensor([0] + motion_bin_counts[:-1]), dim=0).to(self.device)
         self.bin_failed_count = torch.zeros(self.bin_count, dtype=torch.float, device=self.device)
         self._current_bin_failed = torch.zeros(self.bin_count, dtype=torch.float, device=self.device)
         self.kernel = torch.tensor(
@@ -91,6 +93,7 @@ class MultiTrajectoryMotionCommand(CommandTerm):
         self.metrics["sampling_entropy"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["sampling_top1_prob"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["sampling_top1_bin"] = torch.zeros(self.num_envs, device=self.device)
+        self.metrics["sampling_top1_motion"] = torch.zeros(self.num_envs, device=self.device)
         print("[MultiTrajectoryMotionCommand] Performing initial sampling...")
         all_env_ids = torch.arange(self.num_envs, device=self.device)
         self._resample_command(all_env_ids)
@@ -220,23 +223,26 @@ class MultiTrajectoryMotionCommand(CommandTerm):
         self.metrics["error_joint_pos"] = torch.norm(self.joint_pos - self.robot_joint_pos, dim=-1)
         self.metrics["error_joint_vel"] = torch.norm(self.joint_vel - self.robot_joint_vel, dim=-1)
     def _adaptive_sampling(self, env_ids: Sequence[int]):
-        """Adaptive sampling with per-environment handling"""
-        # 检查 termination_manager 是否已初始化（在 __init__ 时可能还不存在）
+        """Adaptive sampling with per-environment handling and timeout awareness"""
         if hasattr(self._env, 'termination_manager') and self._env.termination_manager is not None:
             episode_failed = self._env.termination_manager.terminated[env_ids]
             
             if torch.any(episode_failed):
-                # 为每个失败的环境计算bin index
+                # Problem 2: Use motion-specific bin offsets for failure recording
                 current_bin_indices = []
                 for i, env_id in enumerate(env_ids):
                     if episode_failed[i]:
                         motion_idx = self.current_motion_indices[env_id].item()
                         motion = self.motions[motion_idx]
-                        bin_idx = torch.clamp(
-                            (self.time_steps[env_id] * self.bin_count) // max(motion.time_step_total, 1),
-                            0, self.bin_count - 1
+                        # Calculate motion-specific bin count for this motion
+                        motion_bin_count = int(motion.time_step_total // (1 / (self._env.cfg.decimation * self._env.cfg.sim.dt))) + 1
+                        local_bin_idx = torch.clamp(
+                            (self.time_steps[env_id] * motion_bin_count) // max(motion.time_step_total, 1),
+                            0, motion_bin_count - 1
                         )
-                        current_bin_indices.append(bin_idx)
+                        # Map to global bin index using motion bin offsets
+                        global_bin_idx = self.motion_bin_offsets[motion_idx] + local_bin_idx
+                        current_bin_indices.append(global_bin_idx)
                 
                 if len(current_bin_indices) > 0:
                     fail_bins = torch.stack(current_bin_indices)
@@ -261,12 +267,35 @@ class MultiTrajectoryMotionCommand(CommandTerm):
             sampling_probabilities, len(env_ids), replacement=True
         )
         
-        # 为每个环境设置time_step
+        # Problem 3: Apply timeout-aware sampling for each environment
+        episode_timeout_steps = int(self._env.cfg.episode_length_s / (self._env.cfg.decimation * self._env.cfg.sim.dt))
+        
         for i, env_id in enumerate(env_ids):
-            motion_idx = self.current_motion_indices[env_id].item()
+            global_bin = sampled_bins[i].item()
+            
+            # Find which motion this bin belongs to
+            motion_idx = 0
+            for j in range(len(self.motion_bin_offsets)):
+                if j == len(self.motion_bin_offsets) - 1 or global_bin < self.motion_bin_offsets[j + 1]:
+                    motion_idx = j
+                    break
+            
+            # Calculate local bin within the motion
+            local_bin = global_bin - self.motion_bin_offsets[motion_idx]
             motion = self.motions[motion_idx]
+            motion_bin_count = int(motion.time_step_total // (1 / (self._env.cfg.decimation * self._env.cfg.sim.dt))) + 1
+            
+            # Check timeout constraint
+            max_safe_time_step = max(0, motion.time_step_total - episode_timeout_steps)
+            max_safe_local_bin = int((max_safe_time_step * motion_bin_count) // motion.time_step_total)
+            
+            # Clamp to safe range
+            safe_local_bin = min(local_bin, max_safe_local_bin)
+            
+            # Set motion and time step
+            self.current_motion_indices[env_id] = motion_idx
             self.time_steps[env_id] = int(
-                (sampled_bins[i] / self.bin_count * (motion.time_step_total - 1))
+                (safe_local_bin / motion_bin_count * (motion.time_step_total - 1))
             )
 
         # 更新metrics
@@ -276,6 +305,15 @@ class MultiTrajectoryMotionCommand(CommandTerm):
         self.metrics["sampling_entropy"][:] = H_norm
         self.metrics["sampling_top1_prob"][:] = pmax
         self.metrics["sampling_top1_bin"][:] = imax.float() / self.bin_count
+        
+        # Calculate which motion the top bin belongs to
+        top_bin = imax.item()
+        top_motion_idx = 0
+        for j in range(len(self.motion_bin_offsets)):
+            if j == len(self.motion_bin_offsets) - 1 or top_bin < self.motion_bin_offsets[j + 1]:
+                top_motion_idx = j
+                break
+        self.metrics["sampling_top1_motion"][:] = top_motion_idx
     
     def _resample_command(self, env_ids: Sequence[int]):
         """Resample command: select motion + select starting point"""
@@ -382,6 +420,9 @@ class MultiTrajectoryMotionCommand(CommandTerm):
                 (1 - self.cfg.adaptive_alpha) * self.bin_failed_count
             )
         self._current_bin_failed.zero_()
+        
+        # Update metrics for logging
+        self._update_metrics()
 
 
 @configclass
