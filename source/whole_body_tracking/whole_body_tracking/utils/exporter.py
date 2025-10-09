@@ -114,6 +114,18 @@ def list_to_csv_str(arr, *, decimals: int = 3, delimiter: str = ",") -> str:
 
 def attach_onnx_metadata(env: ManagerBasedRLEnv, run_path: str, path: str, filename="policy.onnx") -> None:
     onnx_path = os.path.join(path, filename)
+
+    observation_names = env.observation_manager.active_terms["policy"]
+    observation_history_lengths: list[int] = []
+
+    if env.observation_manager.cfg.policy.history_length is not None:
+        observation_history_lengths = [env.observation_manager.cfg.policy.history_length] * len(observation_names)
+    else:
+        for name in observation_names:
+            term_cfg = env.observation_manager.cfg.policy.to_dict()[name]
+            history_length = term_cfg["history_length"]
+            observation_history_lengths.append(1 if history_length == 0 else history_length)
+
     metadata = {
         "run_path": run_path,
         "joint_names": env.scene["robot"].data.joint_names,
@@ -121,7 +133,8 @@ def attach_onnx_metadata(env: ManagerBasedRLEnv, run_path: str, path: str, filen
         "joint_damping": env.scene["robot"].data.joint_damping[0].cpu().tolist(),
         "default_joint_pos": env.scene["robot"].data.default_joint_pos_nominal.cpu().tolist(),
         "command_names": env.command_manager.active_terms,
-        "observation_names": env.observation_manager.active_terms["policy"],
+        "observation_names": observation_names,
+        "observation_history_lengths": observation_history_lengths,
         "action_scale": env.action_manager.get_term("joint_pos")._scale[0].cpu().tolist(),
         "anchor_body_name": env.command_manager.get_term("motion").cfg.anchor_body_name,
         "body_names": env.command_manager.get_term("motion").cfg.body_names,
