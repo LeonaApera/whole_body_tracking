@@ -364,7 +364,7 @@ class MotionCommandCfg(CommandTermCfg):
 
     joint_position_range: tuple[float, float] = (-0.52, 0.52)
 
-    adaptive_kernel_size: int = 1
+    adaptive_kernel_size: int = 3
     adaptive_lambda: float = 0.8
     adaptive_uniform_ratio: float = 0.1
     adaptive_alpha: float = 0.001
