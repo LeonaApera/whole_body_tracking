@@ -1,12 +1,14 @@
 from __future__ import annotations
-
+import pdb
 import math
 import numpy as np
 import os
+import pickle
+import glob
 import torch
 from collections.abc import Sequence
 from dataclasses import MISSING
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm, CommandTermCfg
@@ -44,9 +46,55 @@ class MultiTrajectoryMotionCommand(CommandTerm):
         
     
         self.motions=[]
+        self.latent_features_list = []
+        self.delta_root_pos_list = []
+        self.delta_root_quat_list=[]
         for motions in self.cfg.motion_files:
-            self.motions.append(MotionLoader(motions, self.body_indexes.tolist(), device=self.device))
-    
+            current_motion = MotionLoader(motions, self.body_indexes.tolist(), device=self.device)
+            if current_motion.joint_pos.shape[0]%4!=0:
+                current_motion.joint_pos=current_motion.joint_pos[:-(current_motion.joint_pos.shape[0]%4)]
+            self.motions.append(current_motion)
+            motion_name = os.path.basename(os.path.dirname(motions))
+            print(f"Loaded motion: {motion_name}")
+            latent_file = glob.glob(os.path.join(self.cfg.vqvae_inference_dir,  f"{motion_name}*.pkl"))
+            with open(latent_file[0],'rb') as f:
+               data=pickle.load(f)
+            latent_features = data["latent_features"][0][0:self.motions[-1].joint_pos.shape[0]//4]
+            print(type(data["latent_features"]))
+            print(data["latent_features"][0])
+            print(len(data["latent_features"]))
+            print(len(data["latent_features"][0]))
+            print(type(latent_features))
+            # Convert to tensor if not already a tensor
+            if not isinstance(latent_features, torch.Tensor):
+                latent_features = torch.tensor(latent_features, device=self.device)
+            else:
+                latent_features = latent_features.to(self.device)
+            self.latent_features_list.append(latent_features)
+            
+            root_file=glob.glob(os.path.join(self.cfg.delta_root_dir,  f"{motion_name}*.pkl"))
+            with open(root_file[0], "rb") as f:
+               data=pickle.load(f)
+            delta_positions = data["delta_positions"][0:self.motions[-1].joint_pos.shape[0]]
+            delta_quaternions = data["delta_quaternions"][0:self.motions[-1].joint_pos.shape[0]]
+            # Convert to tensor if not already a tensor
+            if not isinstance(delta_positions, torch.Tensor):
+                delta_positions = torch.tensor(delta_positions, device=self.device)
+            else:
+                delta_positions = delta_positions.to(self.device)
+            if not isinstance(delta_quaternions, torch.Tensor):
+                delta_quaternions = torch.tensor(delta_quaternions, device=self.device)
+            else:
+                delta_quaternions = delta_quaternions.to(self.device)
+            self.delta_root_pos_list.append(delta_positions)
+            self.delta_root_quat_list.append(delta_quaternions)
+        self.latent_features_tensor = torch.cat(self.latent_features_list, dim=0)
+        self.delta_root_pos_tensor = torch.cat(self.delta_root_pos_list, dim=0)
+        self.delta_root_quat_tensor = torch.cat(self.delta_root_quat_list, dim=0)
+        print("shape of latent features tensor:", self.latent_features_tensor.shape)
+        print("shape of delta root pos tensor:", self.delta_root_pos_tensor.shape)
+        print("shape of delta root quat tensor:", self.delta_root_quat_tensor.shape)
+
         self.current_motion_indices = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self.time_steps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self.max_timesteps = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
@@ -81,7 +129,8 @@ class MultiTrajectoryMotionCommand(CommandTerm):
         motion_lengths = [m.joint_pos.shape[0] for m in self.motions]
         self.motion_offsets = torch.cumsum(torch.tensor([0] + motion_lengths[:-1]), dim=0).to(self.device)
 
-
+        self.global_root_pos = torch.zeros(self.num_envs, 3, device=self.device)
+        self.global_root_quat = torch.zeros(self.num_envs, 4, device=self.device)
         self.metrics["error_anchor_pos"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_anchor_rot"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_anchor_lin_vel"] = torch.zeros(self.num_envs, device=self.device)
@@ -94,6 +143,7 @@ class MultiTrajectoryMotionCommand(CommandTerm):
         self.metrics["sampling_top1_prob"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["sampling_top1_bin"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["sampling_top1_motion"] = torch.zeros(self.num_envs, device=self.device)
+        # pdb.set_trace()
         print("[MultiTrajectoryMotionCommand] Performing initial sampling...")
         all_env_ids = torch.arange(self.num_envs, device=self.device)
         self._resample_command(all_env_ids)
@@ -123,7 +173,18 @@ class MultiTrajectoryMotionCommand(CommandTerm):
     def joint_vel(self) -> torch.Tensor:
         global_indices = self.motion_offsets[self.current_motion_indices] + self.time_steps
         return self.motion_joint_vel[global_indices]
-    
+    @property
+    def latent_feature(self) -> torch.Tensor:
+        global_indices = self.motion_offsets[self.current_motion_indices] + self.time_steps
+        return self.latent_features_tensor[global_indices//4]
+    @property
+    def delta_root_pos(self) -> torch.Tensor:
+        global_indices = self.motion_offsets[self.current_motion_indices] + self.time_steps
+        return self.delta_root_pos_tensor[global_indices]
+    @property
+    def delta_root_quat(self) -> torch.Tensor:
+        global_indices = self.motion_offsets[self.current_motion_indices] + self.time_steps
+        return self.delta_root_quat_tensor[global_indices]
     @property
     def body_pos_w(self) -> torch.Tensor:
         global_indices = self.motion_offsets[self.current_motion_indices] + self.time_steps
@@ -282,6 +343,7 @@ class MultiTrajectoryMotionCommand(CommandTerm):
             
             # Calculate local bin within the motion
             local_bin = global_bin - self.motion_bin_offsets[motion_idx]
+           
             motion = self.motions[motion_idx]
             motion_bin_count = int(motion.time_step_total // (1 / (self._env.cfg.decimation * self._env.cfg.sim.dt))) + 1
             
@@ -297,11 +359,12 @@ class MultiTrajectoryMotionCommand(CommandTerm):
             self.time_steps[env_id] = int(
                 (safe_local_bin / motion_bin_count * (motion.time_step_total - 1))
             )
-
+        pdb.set_trace()
         # 更新metrics
         H = -(sampling_probabilities * (sampling_probabilities + 1e-12).log()).sum()
         H_norm = H / math.log(self.bin_count)
         pmax, imax = sampling_probabilities.max(dim=0)
+        
         self.metrics["sampling_entropy"][:] = H_norm
         self.metrics["sampling_top1_prob"][:] = pmax
         self.metrics["sampling_top1_bin"][:] = imax.float() / self.bin_count
@@ -337,7 +400,8 @@ class MultiTrajectoryMotionCommand(CommandTerm):
         root_ori = self.body_quat_w[:, 0].clone()
         root_lin_vel = self.body_lin_vel_w[:, 0].clone()
         root_ang_vel = self.body_ang_vel_w[:, 0].clone()
-
+        self.global_root_pos[env_ids] = root_pos[env_ids]
+        self.global_root_quat[env_ids] = root_ori[env_ids]
         # Pose randomization
         range_list = [self.cfg.pose_range.get(key, (0.0, 0.0)) 
                      for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
@@ -388,7 +452,8 @@ class MultiTrajectoryMotionCommand(CommandTerm):
         """Update command for each time step"""
         # 1. Advance time step
         self.time_steps += 1
-        
+        self.global_root_pos += self.delta_root_pos
+        self.global_root_quat = quat_mul(self.global_root_quat, self.delta_root_quat)
         # 2. Check if resampling is needed (motion end)
         needs_resample = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         for i, motion in enumerate(self.motions):
@@ -458,6 +523,12 @@ class MultiTrajectoryMotionCommandCfg(CommandTermCfg):
     
     joint_position_range: tuple[float, float] = (-0.52, 0.52)
     """Range for joint position perturbations."""
+    
+    vqvae_inference_dir: Any = MISSING
+    """Directory containing VQVAE inference results (latent features)."""
+    
+    delta_root_dir: Any = MISSING
+    """Directory containing delta root prediction results."""
     
     # Visualization
     anchor_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/Command/pose")
