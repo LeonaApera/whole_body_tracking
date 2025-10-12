@@ -60,6 +60,8 @@ class G1MultiTrajectoryEnvCfg(G1FlatEnvCfg):
             ],
             anchor_body_name="torso_link",
             body_names=self.commands.motion.body_names,
+            vqvae_inference_dir="/home/yuxin/Projects/VQVAE/VAE/58_concat_32dim",
+            delta_root_dir="/home/yuxin/Projects/VQVAE/VAE/delta_root_predictor/checkpoints/code_to_delta_quat_20251010_230819/inference_results",
             pose_range={
                 "x": (-0.05, 0.05),
                 "y": (-0.05, 0.05), 
@@ -79,3 +81,4 @@ class G1MultiTrajectoryEnvCfg(G1FlatEnvCfg):
             joint_position_range=(-0.1, 0.1),
             debug_vis=False,
         )
+ 
