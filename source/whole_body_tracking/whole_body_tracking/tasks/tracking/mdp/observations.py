@@ -101,7 +101,6 @@ def robot_anchor_ori_w(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
     mat = matrix_from_quat(command.robot_anchor_quat_w)
     return mat[..., :2].reshape(mat.shape[0], -1)
 
-
 def robot_anchor_lin_vel_w(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
     command: MotionCommand = env.command_manager.get_term(command_name)
 
@@ -420,104 +419,170 @@ def latent_space_67_preprocessed(env: ManagerBasedEnv,
     return latent_features.view(env.num_envs, -1)
 
 
-def vqvae_latent_codes(env: ManagerBasedEnv, 
-                      command_name: str,
-                      vqvae_data_dir: str = "/home/yuxin/Projects/VQVAE/VAE/58_concat_32dim",
-                      dim: int = 32) -> torch.Tensor:
-    """
-    Load VQ-VAE latent codes based on current timestep (OPTIMIZED VERSION).
+# def vqvae_latent_codes(env: ManagerBasedEnv, 
+#                       command_name: str,
+#                       vqvae_data_dir: str = "/home/yuxin/Projects/VQVAE/VAE/58_concat_32dim",
+#                       dim: int = 32) -> torch.Tensor:
+#     """
+#     Load VQ-VAE latent codes based on current timestep (OPTIMIZED VERSION).
     
-    每4步对应一个latent code，所以用current_step//4来索引。
-    从VQ-VAE推理结果文件中加载32维特征，每4个仿真步骤使用一个代码。
-    优化版本：使用向量化操作避免循环，显著提高性能。
+#     每4步对应一个latent code，所以用current_step//4来索引。
+#     从VQ-VAE推理结果文件中加载32维特征，每4个仿真步骤使用一个代码。
+#     兼容单轨迹和多轨迹命令。优化版本：使用向量化操作避免循环，显著提高性能。
     
-    Args:
-        env: The environment instance
-        command_name: Name of the motion command to use  
-        vqvae_data_dir: Directory containing VQ-VAE latent feature files (.pkl format)
-        dim: Dimension of latent codes (should be 32)
+#     Args:
+#         env: The environment instance
+#         command_name: Name of the motion command to use  
+#         vqvae_data_dir: Directory containing VQ-VAE latent feature files (.pkl format)
+#         dim: Dimension of latent codes (should be 32)
         
-    Returns:
-        Latent codes for current timestep
-        Shape: (num_envs, latent_dim)
-    """
-    import pickle
-    import os
-    import glob
+#     Returns:
+#         Latent codes for current timestep
+#         Shape: (num_envs, latent_dim)
+#     """
+#     import pickle
+#     import os
+#     import glob
     
-    # Get the motion command
-    command: MotionCommand = env.command_manager.get_term(command_name)
+#     # Get the motion command (compatible with both single and multi-trajectory commands)
+#     command = env.command_manager.get_term(command_name)
     
-    # Initialize VQ-VAE latent data cache if not already loaded (ONLY ONCE)
-    if not hasattr(env, '_vqvae_latent_gpu_cache'):
-        env._vqvae_latent_gpu_cache = {}
+#     # Initialize VQ-VAE latent data cache if not already loaded (ONLY ONCE)
+#     if not hasattr(env, '_vqvae_latent_gpu_cache'):
+#         env._vqvae_latent_gpu_cache = {}
         
-        # 预加载所有需要的VQ-VAE文件到GPU
-        motion_name = "dance1_subject2:v0"  # 简化为单一motion
-        pkl_files = glob.glob(os.path.join(vqvae_data_dir, f"{motion_name}*_motion_vqvae_58d_concat_concat_w100_d32.pkl"))
+#         # 获取所有可能的运动名称（兼容多轨迹）
+#         motion_names = []
         
-        if not pkl_files:
-            print(f"[ERROR] No VQ-VAE latent files found for {motion_name} in directory: {vqvae_data_dir}")
-            return torch.zeros(env.num_envs, dim, device=env.device)
+#         # 检查是否为多轨迹命令
+#         if hasattr(command, 'motions') and hasattr(command, 'motion_files'):
+#             # MultiTrajectoryMotionCommand: 从motion_files获取所有运动名称
+#             for motion_file in command.cfg.motion_files:
+#                 # 从文件路径提取运动名称
+#                 motion_name = os.path.splitext(os.path.basename(motion_file))[0]
+#                 # 确保格式一致（添加:v0后缀如果没有的话）
+#                 if ':v0' not in motion_name:
+#                     motion_name = motion_name + ':v0'
+#                 motion_names.append(motion_name)
+#         else:
+#             # 单轨迹命令：使用默认运动名称
+#             motion_names = ["dance1_subject2:v0"]
+        
+#         print(f"[INFO] Loading VQ-VAE latent codes for motions: {motion_names}")
+        
+#         # 为每个运动加载VQ-VAE文件
+#         for motion_name in motion_names:
+#             if motion_name in env._vqvae_latent_gpu_cache:
+#                 continue  # 已加载，跳过
+                
+#             # 尝试找到匹配的VQ-VAE文件
+#             pkl_files = glob.glob(os.path.join(vqvae_data_dir, f"{motion_name}*_motion_vqvae_58d_concat_concat_w100_d32.pkl"))
             
-        vqvae_file = pkl_files[0]
-        print(f"[INFO] Loading and optimizing VQ-VAE file: {os.path.basename(vqvae_file)}")
+#             if not pkl_files:
+#                 # 尝试不带:v0后缀的名称
+#                 base_name = motion_name.replace(':v0', '')
+#                 pkl_files = glob.glob(os.path.join(vqvae_data_dir, f"{base_name}*_motion_vqvae_58d_concat_concat_w100_d32.pkl"))
             
-        try:
-            with open(vqvae_file, 'rb') as f:
-                data = pickle.load(f)
+#             if not pkl_files:
+#                 print(f"[WARNING] No VQ-VAE latent files found for {motion_name} in directory: {vqvae_data_dir}")
+#                 # 创建零特征作为备用
+#                 env._vqvae_latent_gpu_cache[motion_name] = torch.zeros(1000, dim, device=env.device)  # 假设1000帧
+#                 continue
+                
+#             vqvae_file = pkl_files[0]
+#             print(f"[INFO] Loading and optimizing VQ-VAE file: {os.path.basename(vqvae_file)}")
+                
+#             try:
+#                 with open(vqvae_file, 'rb') as f:
+#                     data = pickle.load(f)
+                
+#                 # Extract latent features from the VQ-VAE inference result
+#                 if 'latent_features' in data:
+#                     latent_features = data['latent_features']
+                    
+#                     # Handle different data formats
+#                     if isinstance(latent_features, list) and len(latent_features) > 0:
+#                         latent_features = latent_features[0]
+                    
+#                     if not isinstance(latent_features, torch.Tensor):
+#                         latent_features = torch.tensor(latent_features, dtype=torch.float32)
+                    
+#                     # 确保形状正确并直接加载到GPU
+#                     if hasattr(latent_features, 'shape') and len(latent_features.shape) == 2 and latent_features.shape[1] == dim:
+#                         env._vqvae_latent_gpu_cache[motion_name] = latent_features.to(env.device)
+#                         print(f"[INFO] Optimized VQ-VAE latent features loaded to GPU for {motion_name}: {latent_features.shape}")
+#                     else:
+#                         shape_info = getattr(latent_features, 'shape', 'unknown')
+#                         print(f"[ERROR] Unexpected latent features shape for {motion_name}: {shape_info}, expected (N, {dim})")
+#                         # 创建零特征作为备用
+#                         env._vqvae_latent_gpu_cache[motion_name] = torch.zeros(1000, dim, device=env.device)
+#                 else:
+#                     print(f"[ERROR] No 'latent_features' key found in {vqvae_file}")
+#                     # 创建零特征作为备用
+#                     env._vqvae_latent_gpu_cache[motion_name] = torch.zeros(1000, dim, device=env.device)
+                    
+#             except Exception as e:
+#                 print(f"[ERROR] Failed to load VQ-VAE latent file {vqvae_file}: {e}")
+#                 # 创建零特征作为备用
+#                 env._vqvae_latent_gpu_cache[motion_name] = torch.zeros(1000, dim, device=env.device)
+    
+#     # 向量化处理：获取所有环境的时间步和运动索引
+#     if hasattr(command, 'time_steps'):
+#         timesteps = command.time_steps  # Shape: (num_envs,)
+#     else:
+#         timesteps = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
+    
+#     # 处理运动索引（兼容单轨迹和多轨迹）
+#     if hasattr(command, 'current_motion_indices'):
+#         # 多轨迹命令
+#         motion_indices = command.current_motion_indices  # Shape: (num_envs,)
+        
+#         # 为每个环境获取对应的潜在代码
+#         latent_codes = torch.zeros(env.num_envs, dim, device=env.device)
+        
+#         for env_idx in range(env.num_envs):
+#             motion_idx = motion_indices[env_idx].item()
+#             timestep = timesteps[env_idx].item()
             
-            # Extract latent features from the VQ-VAE inference result
-            if 'latent_features' in data:
-                latent_features = data['latent_features']
+#             # 获取运动名称
+#             if hasattr(command, 'cfg') and hasattr(command.cfg, 'motion_files') and motion_idx < len(command.cfg.motion_files):
+#                 motion_file = command.cfg.motion_files[motion_idx]
+#                 motion_name = os.path.splitext(os.path.basename(motion_file))[0]
+#                 if ':v0' not in motion_name:
+#                     motion_name = motion_name + ':v0'
+#             else:
+#                 motion_name = "dance1_subject2:v0"  # 默认备用
+            
+#             # 获取缓存的潜在特征
+#             if motion_name in env._vqvae_latent_gpu_cache:
+#                 cached_latents = env._vqvae_latent_gpu_cache[motion_name]  # Shape: (T, dim)
                 
-                # Handle different data formats
-                if isinstance(latent_features, list) and len(latent_features) > 0:
-                    latent_features = latent_features[0]
+#                 # 每4步对应一个latent code
+#                 latent_idx = timestep // 4
+#                 max_latent_idx = cached_latents.shape[0] - 1
+#                 latent_idx = min(max_latent_idx, max(0, latent_idx))
                 
-                if not isinstance(latent_features, torch.Tensor):
-                    latent_features = torch.tensor(latent_features, dtype=torch.float32)
-                
-                # 确保形状正确并直接加载到GPU
-                if len(latent_features.shape) == 2 and latent_features.shape[1] == dim:
-                    env._vqvae_latent_gpu_cache[motion_name] = latent_features.to(env.device)
-                    print(f"[INFO] Optimized VQ-VAE latent features loaded to GPU: {latent_features.shape}")
-                else:
-                    print(f"[ERROR] Unexpected latent features shape: {latent_features.shape}, expected (N, {dim})")
-                    return torch.zeros(env.num_envs, dim, device=env.device)
-            else:
-                print(f"[ERROR] No 'latent_features' key found in {vqvae_file}")
-                return torch.zeros(env.num_envs, dim, device=env.device)
-                
-        except Exception as e:
-            print(f"[ERROR] Failed to load VQ-VAE latent file {vqvae_file}: {e}")
-            return torch.zeros(env.num_envs, dim, device=env.device)
+#                 latent_codes[env_idx] = cached_latents[latent_idx]
+#     else:
+#         # 单轨迹命令
+#         motion_name = "dance1_subject2:v0"  # 默认运动名称
+        
+#         if motion_name not in env._vqvae_latent_gpu_cache:
+#             return torch.zeros(env.num_envs, dim, device=env.device)
+        
+#         cached_latents = env._vqvae_latent_gpu_cache[motion_name]  # Shape: (T, dim)
+        
+#         # 每4步对应一个latent code（向量化）
+#         latent_indices = timesteps // 4
+        
+#         # 限制到有效范围（向量化）
+#         max_latent_idx = cached_latents.shape[0] - 1
+#         latent_indices = torch.clamp(latent_indices, 0, max_latent_idx)
+        
+#         # 批量索引：单次GPU操作
+#         latent_codes = cached_latents[latent_indices]  # Shape: (num_envs, dim)
     
-    # 向量化处理：获取所有环境的时间步
-    motion_name = "dance1_subject2:v0"
-    
-    if motion_name not in env._vqvae_latent_gpu_cache:
-        return torch.zeros(env.num_envs, dim, device=env.device)
-    
-    cached_latents = env._vqvae_latent_gpu_cache[motion_name]  # Shape: (T, dim)
-    
-    # 获取所有环境的时间步（向量化）
-    if hasattr(command, 'time_steps'):
-        timesteps = command.time_steps  # Shape: (num_envs,)
-    else:
-        timesteps = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
-    
-    # 每4步对应一个latent code（向量化）
-    latent_indices = timesteps // 4
-    
-    # 限制到有效范围（向量化）
-    max_latent_idx = cached_latents.shape[0] - 1
-    latent_indices = torch.clamp(latent_indices, 0, max_latent_idx)
-    
-    # 批量索引：单次GPU操作替代4096次循环！
-    latent_codes = cached_latents[latent_indices]  # Shape: (num_envs, dim)
-    
-    return latent_codes.view(env.num_envs, -1)
+#     return latent_codes.view(env.num_envs, -1)
 
 
 def predicted_quaternions_rotation_6d(env: ManagerBasedEnv, 
@@ -930,33 +995,29 @@ def quaternion_to_rotation_matrix_batch(quat: torch.Tensor) -> torch.Tensor:
     return R
 
 
-def projected_gravity(env: ManagerBasedEnv) -> torch.Tensor:
-    """
-    Projection of the gravity direction on base frame.
+def vqvae_latent_codes(env: ManagerBasedEnv, 
+                      command_name: str,
+                   ) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    return command.latent_feature
+def motion_anchor_ori_b_infer(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    _, ori = subtract_frame_transforms(
+        command.robot_anchor_pos_w,
+        command.robot_anchor_quat_w,
+        command.global_root_pos,
+        command.global_root_quat,
+    )
+    mat = matrix_from_quat(ori)
+    return mat[..., :2].reshape(mat.shape[0], -1)
     
-    This function computes the gravity vector projected into the robot's base frame,
-    which provides information about the robot's orientation relative to gravity.
-    This is useful for balance and orientation control.
-    
-    Args:
-        env: The environment instance
-        
-    Returns:
-        Projected gravity vector in base frame
-        Shape: (num_envs, 3)
-    """
-    # Get robot data
-    robot = env.scene["robot"]
-    
-    # Define gravity vector in world frame (pointing downward)
-    gravity_vec_w = torch.tensor([0.0, 0.0, -1.0], device=env.device, dtype=torch.float32)
-    gravity_vec_w = gravity_vec_w.unsqueeze(0).repeat(env.num_envs, 1)  # Shape: (num_envs, 3)
-    
-    # Get robot root link quaternion (world frame)
-    root_link_quat_w = robot.data.root_link_quat_w  # Shape: (num_envs, 4)
-    
-    # Project gravity vector into robot base frame using quaternion rotation
-    projected_gravity_b = quat_rotate_inverse(root_link_quat_w, gravity_vec_w)
-    
-    return projected_gravity_b.view(env.num_envs, -1)
+def motion_anchor_pos_b_infer(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    pos, _ = subtract_frame_transforms(
+        command.robot_anchor_pos_w,
+        command.robot_anchor_quat_w,
+        command.global_root_pos,
+        command.global_root_quat,
+    )
 
+    return pos.view(env.num_envs, -1)
