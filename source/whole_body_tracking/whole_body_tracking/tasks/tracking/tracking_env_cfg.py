@@ -217,15 +217,16 @@ class ObservationsCfg:
     @configclass
     class PolicyCfgVQVAE(ObsGroup):
         """Observations for policy group with VQ-VAE latent space."""
-        vqvae_latent_codes = ObsTerm(func=mdp.vqvae_latent_codes, params={"command_name": "motion", "vqvae_data_dir": "/home/yuxin/Projects/VQVAE/VAE/58_concat_32dim"})  # 32维
+        # vqvae_latent_codes = ObsTerm(func=mdp.vqvae_latent_codes, params={"command_name": "motion", "vqvae_data_dir": "/home/yuxin/Projects/VQVAE/VAE/58_concat_32dim"})  # 32维
+        vqvae_latent_codes = ObsTerm(func=mdp.vqvae_latent_codes, params={"command_name": "motion"})  # 32维
         # observation terms (order preserved)
         # command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
-        # motion_anchor_pos_b = ObsTerm(
-        #     func=mdp.motion_anchor_pos_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.25, n_max=0.25)
-        # )
-        # motion_anchor_ori_b = ObsTerm(
-        #     func=mdp.motion_anchor_ori_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.05, n_max=0.05)
-        # )
+        motion_anchor_pos_b = ObsTerm(
+            func=mdp.motion_anchor_pos_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.25, n_max=0.25)
+        )
+        motion_anchor_ori_b = ObsTerm(
+            func=mdp.motion_anchor_ori_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.05, n_max=0.05)
+        )
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.5, n_max=0.5))
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
         joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
@@ -257,6 +258,21 @@ class ObservationsCfg:
         vqvae_latent_codes = ObsTerm(func=mdp.vqvae_latent_codes, params={"command_name": "motion", "vqvae_data_dir": "/home/yuxin/Projects/VQVAE/VAE/58_concat_32dim"})  # 32维
         pred_quat_relative = ObsTerm(func=mdp.predicted_anchor_ori_b, params={"command_name": "motion", "quat_inference_dir": "/home/yuxin/Projects/VQVAE/VAE/code_to_quat_checkpoints/code_to_quat_20250927_013708/quat_inference"})
         projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05))
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        actions = ObsTerm(func=mdp.last_action)
+
+        def __post_init__(self):
+            self.enable_corruption = True
+            self.concatenate_terms = True
+    @configclass
+    class PolicyCfgVQVAE_delta_root(ObsGroup):
+        """Observations for policy group with VQ-VAE latent space and delta root position and orientation."""
+        vqvae_latent_codes = ObsTerm(func=mdp.vqvae_latent_codes, params={"command_name": "motion"})  # 32维
+        delta_root_pos = ObsTerm(func=mdp.motion_anchor_pos_b_infer, params={"command_name": "motion"})
+        delta_root_quat = ObsTerm(func=mdp.motion_anchor_ori_b_infer, params={"command_name": "motion"})
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.5, n_max=0.5))
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
         joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
@@ -339,9 +355,10 @@ class ObservationsCfg:
     @configclass
     class PrivilegedCfgVQVAE(ObsGroup):
         # command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
-        vqvae_latent_codes = ObsTerm(func=mdp.vqvae_latent_codes, params={"command_name": "motion", "vqvae_data_dir": "/home/yuxin/Projects/VQVAE/VAE/58_concat_32dim"})  # 32维
-        # motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
-        # motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})
+        # vqvae_latent_codes = ObsTerm(func=mdp.vqvae_latent_codes, params={"command_name": "motion", "vqvae_data_dir": "/home/yuxin/Projects/VQVAE/VAE/58_concat_32dim"})  # 32维
+        vqvae_latent_codes = ObsTerm(func=mdp.vqvae_latent_codes, params={"command_name": "motion"})  # 32维
+        motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
+        motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})
         body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
         body_ori = ObsTerm(func=mdp.robot_body_ori_b, params={"command_name": "motion"})
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
@@ -375,6 +392,19 @@ class ObservationsCfg:
         joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5))
         actions = ObsTerm(func=mdp.last_action)
+    @configclass
+    class PrivilegedCfgVQVAE_delta_root(ObsGroup):
+        """Observations for privileged group with VQ-VAE latent space and delta root position and orientation."""
+        vqvae_latent_codes = ObsTerm(func=mdp.vqvae_latent_codes, params={"command_name": "motion"})  # 32维
+        delta_root_pos = ObsTerm(func=mdp.motion_anchor_pos_b_infer, params={"command_name": "motion"})
+        delta_root_quat = ObsTerm(func=mdp.motion_anchor_ori_b_infer, params={"command_name": "motion"})
+        body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
+        body_ori = ObsTerm(func=mdp.robot_body_ori_b, params={"command_name": "motion"})
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        actions = ObsTerm(func=mdp.last_action)
     def __post_init__(self):
         """Initialize dynamic configuration based on OBSERVATION_MODE."""
         PolicyClass, PrivilegedClass = get_observation_classes()
@@ -402,6 +432,8 @@ def get_observation_classes():
         return ObservationsCfg.PolicyCfgVQVAE_yaw, ObservationsCfg.PrivilegedCfgVQVAE_yaw
     elif OBSERVATION_MODE == "vqvae_yaw_gravity":
         return ObservationsCfg.PolicyCfgVQVAE_yaw_gravity, ObservationsCfg.PrivilegedCfgVQVAE_yaw_gravity
+    elif OBSERVATION_MODE == "vqvae_delta_root":
+        return ObservationsCfg.PolicyCfgVQVAE_delta_root, ObservationsCfg.PrivilegedCfgVQVAE_delta_root
     else:  # default
         return ObservationsCfg.PolicyCfg, ObservationsCfg.PrivilegedCfg
 @configclass
