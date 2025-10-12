@@ -1005,8 +1005,8 @@ def motion_anchor_ori_b_infer(env: ManagerBasedEnv, command_name: str) -> torch.
     _, ori = subtract_frame_transforms(
         command.robot_anchor_pos_w,
         command.robot_anchor_quat_w,
-        command.global_root_pos,
-        command.global_root_quat,
+        command.global_anchored_pos,
+        command.global_anchored_quat,
     )
     mat = matrix_from_quat(ori)
     return mat[..., :2].reshape(mat.shape[0], -1)
@@ -1016,8 +1016,8 @@ def motion_anchor_pos_b_infer(env: ManagerBasedEnv, command_name: str) -> torch.
     pos, _ = subtract_frame_transforms(
         command.robot_anchor_pos_w,
         command.robot_anchor_quat_w,
-        command.global_root_pos,
-        command.global_root_quat,
+        command.global_anchored_pos,
+        command.global_anchored_quat,
     )
 
     return pos.view(env.num_envs, -1)

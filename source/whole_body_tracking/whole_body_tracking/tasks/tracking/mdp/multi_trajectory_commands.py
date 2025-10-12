@@ -129,8 +129,8 @@ class MultiTrajectoryMotionCommand(CommandTerm):
         motion_lengths = [m.joint_pos.shape[0] for m in self.motions]
         self.motion_offsets = torch.cumsum(torch.tensor([0] + motion_lengths[:-1]), dim=0).to(self.device)
 
-        self.global_root_pos = torch.zeros(self.num_envs, 3, device=self.device)
-        self.global_root_quat = torch.zeros(self.num_envs, 4, device=self.device)
+        self.global_anchored_pos = torch.zeros(self.num_envs, 3, device=self.device)
+        self.global_anchored_quat = torch.zeros(self.num_envs, 4, device=self.device)
         self.metrics["error_anchor_pos"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_anchor_rot"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["error_anchor_lin_vel"] = torch.zeros(self.num_envs, device=self.device)
@@ -400,8 +400,10 @@ class MultiTrajectoryMotionCommand(CommandTerm):
         root_ori = self.body_quat_w[:, 0].clone()
         root_lin_vel = self.body_lin_vel_w[:, 0].clone()
         root_ang_vel = self.body_ang_vel_w[:, 0].clone()
-        self.global_root_pos[env_ids] = root_pos[env_ids]
-        self.global_root_quat[env_ids] = root_ori[env_ids]
+        anchor_pos = self.anchor_pos_w.clone()
+        anchor_ori = self.anchor_quat_w.clone()
+        self.global_anchored_pos[env_ids] = anchor_pos[env_ids]
+        self.global_anchored_quat[env_ids] = anchor_ori[env_ids]
         # Pose randomization
         range_list = [self.cfg.pose_range.get(key, (0.0, 0.0)) 
                      for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
@@ -452,8 +454,8 @@ class MultiTrajectoryMotionCommand(CommandTerm):
         """Update command for each time step"""
         # 1. Advance time step
         self.time_steps += 1
-        self.global_root_pos += self.delta_root_pos
-        self.global_root_quat = quat_mul(self.global_root_quat, self.delta_root_quat)
+        self.global_anchored_pos += self.delta_root_pos
+        self.global_anchored_quat = quat_mul(self.global_anchored_quat, self.delta_root_quat)
         # 2. Check if resampling is needed (motion end)
         needs_resample = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         for i, motion in enumerate(self.motions):
