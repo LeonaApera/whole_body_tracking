@@ -17,7 +17,8 @@ class G1MultiTrajectoryEnvCfg(G1FlatEnvCfg):
         self.commands.motion = MultiTrajectoryMotionCommandCfg(
             asset_name="robot",
             # motion_files="jianuocao0105-nanjing-university/csv_to_npz/*",  # WandB Registry pattern
-            motion_files=["/home/yuxin/Projects/VQVAE/VAE/lanfan1_npz/dance1_subject1:v0/motion.npz",
+            motion_files=[
+            # "/home/yuxin/Projects/VQVAE/VAE/lanfan1_npz/dance1_subject1:v0/motion.npz",
             "/home/yuxin/Projects/VQVAE/VAE/lanfan1_npz/dance1_subject2:v0/motion.npz",
             "/home/yuxin/Projects/VQVAE/VAE/lanfan1_npz/dance1_subject3:v0/motion.npz",
             "/home/yuxin/Projects/VQVAE/VAE/lanfan1_npz/dance2_subject1:v0/motion.npz",
@@ -30,7 +31,7 @@ class G1MultiTrajectoryEnvCfg(G1FlatEnvCfg):
             "/home/yuxin/Projects/VQVAE/VAE/lanfan1_npz/fallAndGetUp1_subject5:v0/motion.npz",
             "/home/yuxin/Projects/VQVAE/VAE/lanfan1_npz/fallAndGetUp2_subject2:v0/motion.npz",
             "/home/yuxin/Projects/VQVAE/VAE/lanfan1_npz/fallAndGetUp2_subject3:v0/motion.npz",
-            "/home/yuxin/Projects/VQVAE/VAE/lanfan1_npz/fallAndGetUp3_subject1:v0/motion.npz",
+            # "/home/yuxin/Projects/VQVAE/VAE/lanfan1_npz/fallAndGetUp3_subject1:v0/motion.npz",
             "/home/yuxin/Projects/VQVAE/VAE/lanfan1_npz/fight1_subject2:v0/motion.npz",
             "/home/yuxin/Projects/VQVAE/VAE/lanfan1_npz/fight1_subject3:v0/motion.npz",
             "/home/yuxin/Projects/VQVAE/VAE/lanfan1_npz/fight1_subject5:v0/motion.npz",
@@ -60,7 +61,7 @@ class G1MultiTrajectoryEnvCfg(G1FlatEnvCfg):
             ],
             anchor_body_name="torso_link",
             body_names=self.commands.motion.body_names,
-            vqvae_inference_dir="/home/yuxin/Projects/VQVAE/VAE/58_concat_32dim",
+            vqvae_inference_dir="/home/yuxin/Projects/VQVAE/VAE/vqvae_10_11",
             delta_root_dir="/home/yuxin/Projects/VQVAE/VAE/delta_root_predictor/checkpoints/code_to_delta_quat_20251010_230819/inference_results",
             pose_range={
                 "x": (-0.05, 0.05),

@@ -359,7 +359,7 @@ class MultiTrajectoryMotionCommand(CommandTerm):
             self.time_steps[env_id] = int(
                 (safe_local_bin / motion_bin_count * (motion.time_step_total - 1))
             )
-        pdb.set_trace()
+        # pdb.set_trace()
         # 更新metrics
         H = -(sampling_probabilities * (sampling_probabilities + 1e-12).log()).sum()
         H_norm = H / math.log(self.bin_count)
