@@ -25,6 +25,7 @@ parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
 parser.add_argument("--registry_name", type=str, default=None, help="The name of the wandb registry (optional for multi-trajectory tasks).")
+parser.add_argument("--motion_file", type=str, default=None, help="Path to local motion npz file (takes priority over registry_name).")
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -88,13 +89,21 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env_cfg.seed = agent_cfg.seed
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
-    # load the motion file from the wandb registry
+    # load the motion file from local path or wandb registry
     registry_name = args_cli.registry_name
+    motion_file = args_cli.motion_file
     
     # 检查是否为多轨迹任务
     is_multi_trajectory_task = "MultiTrajectory" in args_cli.task
    
-    if registry_name:
+    if motion_file:
+        # 优先使用本地文件
+        if not os.path.exists(motion_file):
+            raise FileNotFoundError(f"Motion file not found: {motion_file}")
+        env_cfg.commands.motion.motion_file = motion_file
+        print(f"[INFO] Using local motion file: {motion_file}")
+        registry_name = os.path.splitext(os.path.basename(motion_file))[0]  # Use filename as registry name
+    elif registry_name:
         # 传统单轨迹模式：从 registry 下载单个 motion 文件
         if ":" not in registry_name:  # Check if the registry name includes alias, if not, append ":latest"
             registry_name += ":latest"
@@ -112,9 +121,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         for motion_file in env_cfg.commands.motion.motion_files:
             print(f"[INFO] Motion source: {motion_file}")
         # motion_file 已经在环境配置中设置为类似 "org/collection/*" 的模式
+        registry_name = "multi_trajectory"
     else:
-        # 既没有 registry_name 也不是多轨迹任务，报错
-        raise ValueError("Either --registry_name must be provided or task must be a multi-trajectory task")
+        # 既没有 registry_name 也不是多轨迹任务，也没有本地文件，报错
+        raise ValueError("Either --motion_file or --registry_name must be provided, or task must be a multi-trajectory task")
     # pdb.set_trace()
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
@@ -149,7 +159,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # create runner from rsl-rl
     runner = OnPolicyRunner(
-        env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device, registry_name=registry_name or "multi_trajectory"
+        env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device, registry_name=registry_name
     )
     # write git state to logs
     runner.add_git_repo_to_log(__file__)
